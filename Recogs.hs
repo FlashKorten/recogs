@@ -15,9 +15,9 @@ _COLS   = 3
 _MAX_STEPS = _ROWS * _COLS
 
 fieldWidth :: GLfloat
-fieldWidth  = (_WIDTH  / (fromIntegral _COLS))
+fieldWidth  = _WIDTH  / fromIntegral _COLS
 fieldHeight :: GLfloat
-fieldHeight = (_HEIGHT / (fromIntegral _ROWS))
+fieldHeight = _HEIGHT / fromIntegral _ROWS
 
 _WIDTH :: GLfloat
 _WIDTH = 1
@@ -37,8 +37,7 @@ initGame l = Game { getFields = l
                   }
 
 shuffleKoords :: [Koord] -> IO [Koord]
-shuffleKoords fields = do
-    evalRandIO $ permute fields
+shuffleKoords fields = evalRandIO $ permute fields
 
 main = do
     (progName,_) <- getArgsAndInitialize
@@ -75,13 +74,12 @@ displayForeground game = do
     drawTueren $ take step fields
 
 drawTueren :: [Koord] -> IO ()
-drawTueren []     = return ()
-drawTueren (x:xs) = drawTuer x >> drawTueren xs
+drawTueren = foldr ((>>) . drawTuer) (return ())
 
 drawTuer :: Koord -> IO ()
 drawTuer (r, c) = do
-    let x = (fromIntegral c) * fieldWidth
-        y = (fromIntegral r) * fieldHeight
+    let x = fromIntegral c * fieldWidth
+        y = fromIntegral r * fieldHeight
     currentColor $= Color4 0.3 0.3 0.3 1
     translate $ Vector3 x y _FOREGROUND_DEPTH
     schranktuer 0 0 fieldWidth fieldHeight _FOREGROUND_DEPTH

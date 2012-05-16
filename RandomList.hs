@@ -38,5 +38,5 @@ permute = fromList
     where
     fromList []  = empty
     fromList [x] = singleton x
-    fromList xs  = (fromList l) `merge` (fromList r)
+    fromList xs  = fromList l `merge` fromList r
         where (l,r) = splitAt (length xs `div` 2) xs

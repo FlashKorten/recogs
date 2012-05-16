@@ -1,0 +1,30 @@
+Name:                recogs
+Version:             0.1
+Synopsis:            Haskell/OpenGL based image-recognition-game for people suffering from dementia
+-- Description:           
+Homepage:            https://github.com/FlashKorten/recogs
+License:             MIT
+License-file:        LICENSE
+Author:              Sebastian Korten
+Maintainer:          sebastian.korten@gmail.com
+Category:            Game
+Build-type:          Simple
+
+Extra-source-files:  
+  README.md
+  RandomList.hs
+Cabal-version:       >=1.6
+
+
+Executable recogs
+  Main-is:             
+    Recogs.hs 
+  Build-depends:       
+    base,
+    MonadRandom,
+    OpenGL,
+    GLUT
+  
+source-repository head
+  type:     git
+  location: git://github.com/FlashKorten/recogs.git
