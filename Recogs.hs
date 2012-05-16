@@ -85,9 +85,9 @@ drawTuer (r, c) = do
     schranktuer 0 0 fieldWidth fieldHeight _FOREGROUND_DEPTH
     translate $ Vector3 (-x) (-y) (-_FOREGROUND_DEPTH)
 
-idle game = do
-    g <- get game
-    postRedisplay Nothing
+-- idle game = do
+--     g <- get game
+--     postRedisplay Nothing
 
 limitStepCount n
     | n < 0          = 0
