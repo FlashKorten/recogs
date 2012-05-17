@@ -5,8 +5,8 @@ import RandomList
 import Control.Monad.Random
 import System.Exit ( exitWith, ExitCode(ExitSuccess))
 
-type Koord = (Int, Int)
-data Game = Game { getFields :: [Koord]
+type Coord = (Int, Int)
+data Game = Game { getFields :: [Coord]
                  , getStep :: Int
                  }
 
@@ -28,16 +28,20 @@ _HEIGHT = 1
 _FOREGROUND_DEPTH = 0.2
 _BACKGROUND_DEPTH = 0.8
 
-fields :: [Koord]
+_BLACK = Color4 0 0 0 1
+_GREY  = Color4 0.3 0.3 0.3 1
+_RED   = Color4 1 0 0 1
+
+fields :: [Coord]
 fields = [(r, c)| r <- [0..(_ROWS - 1)], c <- [0..(_COLS - 1)]]
 
-initGame :: [Koord] -> Game
+initGame :: [Coord] -> Game
 initGame l = Game { getFields = l
                   , getStep = length l
                   }
 
-shuffleKoords :: [Koord] -> IO [Koord]
-shuffleKoords fields = evalRandIO $ permute fields
+shuffleCoords :: [Coord] -> IO [Coord]
+shuffleCoords fields = evalRandIO $ permute fields
 
 main = do
     (progName,_) <- getArgsAndInitialize
@@ -45,7 +49,7 @@ main = do
     createWindow progName
     setupProjection
     depthFunc $= Just Less
-    koords <- shuffleKoords fields
+    koords <- shuffleCoords fields
     game <- newIORef $ initGame koords
     displayCallback $= display game
     -- idleCallback $= Just (idle game)
@@ -55,7 +59,7 @@ main = do
 
 display :: IORef Game -> IO ()
 display game = do
-    clearColor $= Color4 0 0 0 1
+    clearColor $= _BLACK
     clear [DepthBuffer,ColorBuffer]
     displayBackground
     displayForeground game
@@ -63,26 +67,26 @@ display game = do
 
 displayBackground :: IO ()
 displayBackground = do
-    currentColor $= Color4 1 0 0 1
-    schranktuer 0 0 _WIDTH _HEIGHT _BACKGROUND_DEPTH
+    currentColor $= _RED
+    singleSegment 0 0 _WIDTH _HEIGHT _BACKGROUND_DEPTH
 
 displayForeground :: IORef Game -> IO ()
 displayForeground game = do
     g <- get game
-    let step   = getStep g
-        fields = getFields g
-    drawTueren $ take step fields
+    let step     = getStep g
+        fields   = getFields g
+    drawSegments $ take step fields
 
-drawTueren :: [Koord] -> IO ()
-drawTueren = foldr ((>>) . drawTuer) (return ())
+drawSegments :: [Coord] -> IO ()
+drawSegments = foldr ((>>) . drawSegment) (return ())
 
-drawTuer :: Koord -> IO ()
-drawTuer (r, c) = do
+drawSegment :: Coord -> IO ()
+drawSegment (r, c) = do
     let x = fromIntegral c * fieldWidth
         y = fromIntegral r * fieldHeight
-    currentColor $= Color4 0.3 0.3 0.3 1
+    currentColor $= _GREY
     translate $ Vector3 x y _FOREGROUND_DEPTH
-    schranktuer 0 0 fieldWidth fieldHeight _FOREGROUND_DEPTH
+    singleSegment 0 0 fieldWidth fieldHeight _FOREGROUND_DEPTH
     translate $ Vector3 (-x) (-y) (-_FOREGROUND_DEPTH)
 
 -- idle game = do
@@ -114,11 +118,11 @@ fixSize (Size w h) = Size (2*w) (2*h)
 
 reshape game s = do
     screen <- get screenSize
-    -- let size = fixSize screen
-    let size = fixSize (Size 800 600)
+    let size = fixSize screen
+    -- let size = fixSize (Size 800 600)
     viewport $= (positionForSize size, size)
 
-schranktuer x1 y1 x2 y2 z = 
+singleSegment x1 y1 x2 y2 z = 
     renderPrimitive Quads $ mapM_ makeVertices points
         where makeVertices (x, y) = vertex $ Vertex3 x y z
               points = [(x1,y1),(x2,y1),(x2,y2),(x1,y2)]
