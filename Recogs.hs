@@ -6,7 +6,7 @@ import Control.Monad.Random
 import System.Exit ( exitWith, ExitCode(ExitSuccess))
 
 type Coord = (Int, Int)
-data Game = Game { getFields :: [Coord]
+data Game = Game { getCoords :: [Coord]
                  , getStep :: Int
                  }
 
@@ -32,16 +32,16 @@ _BLACK = Color4 0 0 0 1
 _GREY  = Color4 0.3 0.3 0.3 1
 _RED   = Color4 1 0 0 1
 
-fields :: [Coord]
-fields = [(r, c)| r <- [0..(_ROWS - 1)], c <- [0..(_COLS - 1)]]
+coordinates :: [Coord]
+coordinates = [(r, c)| r <- [0..(_ROWS - 1)], c <- [0..(_COLS - 1)]]
 
 initGame :: [Coord] -> Game
-initGame l = Game { getFields = l
+initGame l = Game { getCoords = l
                   , getStep = length l
                   }
 
 shuffleCoords :: [Coord] -> IO [Coord]
-shuffleCoords fields = evalRandIO $ permute fields
+shuffleCoords = evalRandIO . permute 
 
 main = do
     (progName,_) <- getArgsAndInitialize
@@ -49,8 +49,8 @@ main = do
     createWindow progName
     setupProjection
     depthFunc $= Just Less
-    koords <- shuffleCoords fields
-    game <- newIORef $ initGame koords
+    coords <- shuffleCoords coordinates
+    game <- newIORef $ initGame coords
     displayCallback $= display game
     -- idleCallback $= Just (idle game)
     reshapeCallback $= Just (reshape game)
@@ -74,8 +74,8 @@ displayForeground :: IORef Game -> IO ()
 displayForeground game = do
     g <- get game
     let step     = getStep g
-        fields   = getFields g
-    drawSegments $ take step fields
+        coords   = getCoords g
+    drawSegments $ take step coords
 
 drawSegments :: [Coord] -> IO ()
 drawSegments = foldr ((>>) . drawSegment) (return ())
@@ -86,7 +86,7 @@ drawSegment (r, c) = do
         y = fromIntegral r * fieldHeight
     currentColor $= _GREY
     translate $ Vector3 x y _FOREGROUND_DEPTH
-    singleSegment 0 0 fieldWidth fieldHeight _FOREGROUND_DEPTH
+    singleSegment 0 0 fieldWidth fieldHeight 0
     translate $ Vector3 (-x) (-y) (-_FOREGROUND_DEPTH)
 
 -- idle game = do
@@ -118,8 +118,8 @@ fixSize (Size w h) = Size (2*w) (2*h)
 
 reshape game s = do
     screen <- get screenSize
-    let size = fixSize screen
-    -- let size = fixSize (Size 800 600)
+    -- let size = fixSize screen
+    let size = fixSize (Size 800 600)
     viewport $= (positionForSize size, size)
 
 singleSegment x1 y1 x2 y2 z = 
