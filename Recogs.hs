@@ -41,7 +41,13 @@ initGame l = Game { getCoords = l
                   }
 
 shuffleCoords :: [Coord] -> IO [Coord]
-shuffleCoords = evalRandIO . permute 
+shuffleCoords = evalRandIO . permute
+
+reshuffle game = do
+    g <- get game
+    c <- shuffleCoords coordinates
+    game $= g{getCoords=c}
+    display game
 
 main = do
     (progName,_) <- getArgsAndInitialize
@@ -107,6 +113,7 @@ doNextStep game changeStep = do
 keyboard game (Char 'n')   Down _ _ = doNextStep game (flip (-) 1)
 keyboard game (Char 'b')   Down _ _ = doNextStep game (+1)
 keyboard game (Char 'c')   Down _ _ = doNextStep game (*0)
+keyboard game (Char 's')   Down _ _ = reshuffle game
 keyboard game (Char '\27') Down _ _ = exitWith ExitSuccess
 keyboard _ _ _ _ _                  = return ()
 
