@@ -12,12 +12,11 @@ data Game = Game { getCoords :: [Coord]
                  , getConf   :: Config
                  }
 
-_WIDTH :: GLfloat
+_WIDTH, _HEIGHT :: GLfloat
 _WIDTH = 1
-
-_HEIGHT :: GLfloat
 _HEIGHT = 1
 
+_FOREGROUND_DEPTH, _BACKGROUND_DEPTH :: GLfloat
 _FOREGROUND_DEPTH = 0.2
 _BACKGROUND_DEPTH = 0.8
 
@@ -45,6 +44,7 @@ initGame c l = Game { getConf   = c
 shuffleCoords :: [Coord] -> IO [Coord]
 shuffleCoords = evalRandIO . permute
 
+reshuffle :: IORef Game -> IO ()
 reshuffle game = do
     g <- get game
     let conf = getConf g
@@ -54,18 +54,19 @@ reshuffle game = do
     game $= g{getCoords=c}
     display game
 
+main :: IO ()
 main = do
     (progName,_) <- getArgsAndInitialize
     conf <- getConfig
     initialDisplayMode $= [WithDepthBuffer,DoubleBuffered]
-    createWindow progName
+    _ <- createWindow progName
     setupProjection
     depthFunc $= Just Less
     coords <- shuffleCoords $ coordinates (configRows conf) (configCols conf)
     game <- newIORef $ initGame conf coords
     displayCallback $= display game
     -- idleCallback $= Just (idle game)
-    reshapeCallback $= Just (reshape game)
+    reshapeCallback $= Just reshape
     keyboardMouseCallback $= Just (keyboard game)
     mainLoop
 
@@ -108,9 +109,9 @@ drawSegment width height (r, c) = do
 --     g <- get game
 --     postRedisplay Nothing
 
-limitStepCount max n
+limitStepCount m n
     | n < 0     = 0
-    | n > max   = max
+    | n > m     = m
     | otherwise = n
 
 doNextStep game changeStep = do
@@ -119,12 +120,12 @@ doNextStep game changeStep = do
     game $= g{getStep = nextStep}
     display game
 
-keyboard game (Char 'n')   Down _ _ = doNextStep game (flip (-) 1)
-keyboard game (Char 'b')   Down _ _ = doNextStep game (+1)
-keyboard game (Char 'c')   Down _ _ = doNextStep game (*0)
-keyboard game (Char 's')   Down _ _ = reshuffle game
-keyboard game (Char '\27') Down _ _ = exitSuccess
-keyboard _ _ _ _ _                  = return ()
+keyboard game (Char 'n') Down _ _ = doNextStep game (flip (-) 1)
+keyboard game (Char 'b') Down _ _ = doNextStep game (+1)
+keyboard game (Char 'c') Down _ _ = doNextStep game (*0)
+keyboard game (Char 's') Down _ _ = reshuffle game
+keyboard _  (Char '\27') Down _ _ = exitSuccess
+keyboard _ _ _ _ _                = return ()
 
 positionForSize :: Size -> Position
 positionForSize (Size w h) = Position (-fromIntegral w`div`2) (-fromIntegral h`div`2)
@@ -132,8 +133,8 @@ positionForSize (Size w h) = Position (-fromIntegral w`div`2) (-fromIntegral h`d
 fixSize :: Size -> Size
 fixSize (Size w h) = Size (2*w) (2*h)
 
-reshape game s = do
-    screen <- get screenSize
+reshape _ = do
+    -- screen <- get screenSize
     -- let size = fixSize screen
     let size = fixSize (Size 800 600)
     viewport $= (positionForSize size, size)
@@ -143,6 +144,7 @@ singleSegment x1 y1 x2 y2 z =
         where makeVertices (x, y) = vertex $ Vertex3 x y z
               points = [(x1,y1),(x2,y1),(x2,y2),(x1,y2)]
 
+setupProjection :: IO ()
 setupProjection = do
   matrixMode $= Projection
   loadIdentity

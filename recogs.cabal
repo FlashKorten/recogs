@@ -14,6 +14,14 @@ Extra-source-files:
   README.md
   RandomList.hs
   Config.hs
+Extra-tmp-files:
+  Recogs.hi
+  Recogs.o
+  RandomList.hi
+  RandomList.o
+  Config.hi
+  Config.o
+  Recogs
 Cabal-version:       >=1.6
 
 

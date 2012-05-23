@@ -10,7 +10,6 @@ import Data.Char
 import Control.Monad
 import qualified Data.Map as Map
 import Text.ParserCombinators.Parsec
-import Data.Either
 import Data.Maybe
 import System.Console.CmdArgs
 
@@ -22,6 +21,7 @@ data ConfigParameter = ConfigParameter {file :: String
                                        }
               deriving (Show, Data, Typeable)
 
+configParameter :: ConfigParameter
 configParameter = ConfigParameter{file       = "~/.recogs/recogs.cnf"
                                  ,imageDir   = Nothing
                                  ,rows       = Nothing
@@ -77,17 +77,18 @@ readConfig name =
 getInt :: String -> (ConfigParameter -> Maybe Int) -> ConfigParameter -> Either ParseError ConfigMap -> Maybe Int
 getInt fieldName f confMap (Right confFromFile) =
         case f confMap of
-          Just n    -> Just n
-          otherwise -> fmap read (Map.lookup fieldName confFromFile)
+          Just n  -> Just n
+          Nothing -> fmap read (Map.lookup fieldName confFromFile)
 getInt _ _ _ (Left _) = Nothing
 
 getSorted :: ConfigParameter -> Either ParseError ConfigMap -> Maybe Bool
 getSorted confMap (Right confFromFile) =
         case sorted confMap of
-          Just n -> Just n
-          otherwise -> fmap read (Map.lookup "sorted" confFromFile)
+          Just n  -> Just n
+          Nothing -> fmap read (Map.lookup "sorted" confFromFile)
 getSorted _ (Left _) = Nothing
 
+getConfig :: IO Config
 getConfig = do
     c <- cmdArgs configParameter
     confFromFile <- readConfig $ file c
