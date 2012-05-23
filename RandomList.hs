@@ -34,9 +34,9 @@ merge rxs rys = do
 
     -- Generate a random permutation in O(n log n)
 permute :: [a] -> RandomList a
-permute = fromList
+permute = permuteList
     where
-    fromList []  = empty
-    fromList [x] = singleton x
-    fromList xs  = fromList l `merge` fromList r
+    permuteList []  = empty
+    permuteList [x] = singleton x
+    permuteList xs  = permuteList l `merge` permuteList r
         where (l,r) = splitAt (length xs `div` 2) xs

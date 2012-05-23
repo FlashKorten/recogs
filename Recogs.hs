@@ -20,7 +20,10 @@ _FOREGROUND_DEPTH, _BACKGROUND_DEPTH :: GLfloat
 _FOREGROUND_DEPTH = 0.2
 _BACKGROUND_DEPTH = 0.8
 
+_BLACK :: Color4 GLclampf
 _BLACK = Color4 0 0 0 1
+
+_GREY, _RED :: Color4 GLfloat
 _GREY  = Color4 0.3 0.3 0.3 1
 _RED   = Color4 1 0 0 1
 
@@ -109,17 +112,20 @@ drawSegment width height (r, c) = do
 --     g <- get game
 --     postRedisplay Nothing
 
-limitStepCount m n
-    | n < 0     = 0
-    | n > m     = m
-    | otherwise = n
+rangeCheck :: Ord a => a -> a -> a -> a
+rangeCheck lowerBound upperBound n
+    | n < lowerBound = lowerBound
+    | n > upperBound = upperBound
+    | otherwise      = n
 
+doNextStep :: IORef Game -> (Int -> Int) -> IO ()
 doNextStep game changeStep = do
     g <- get game
-    let nextStep = limitStepCount (maxSteps $ getConf g) $ changeStep $ getStep g
+    let nextStep = rangeCheck 0 (maxSteps $ getConf g) $ changeStep $ getStep g
     game $= g{getStep = nextStep}
     display game
 
+keyboard :: IORef Game -> Key -> KeyState -> a -> b -> IO ()
 keyboard game (Char 'n') Down _ _ = doNextStep game (flip (-) 1)
 keyboard game (Char 'b') Down _ _ = doNextStep game (+1)
 keyboard game (Char 'c') Down _ _ = doNextStep game (*0)
@@ -133,12 +139,14 @@ positionForSize (Size w h) = Position (-fromIntegral w`div`2) (-fromIntegral h`d
 fixSize :: Size -> Size
 fixSize (Size w h) = Size (2*w) (2*h)
 
+reshape :: t -> IO ()
 reshape _ = do
     -- screen <- get screenSize
     -- let size = fixSize screen
     let size = fixSize (Size 800 600)
     viewport $= (positionForSize size, size)
 
+singleSegment :: VertexComponent a => a -> a -> a -> a -> a -> IO ()
 singleSegment x1 y1 x2 y2 z =
     renderPrimitive Quads $ mapM_ makeVertices points
         where makeVertices (x, y) = vertex $ Vertex3 x y z

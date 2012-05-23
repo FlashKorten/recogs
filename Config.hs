@@ -44,19 +44,19 @@ ident = do c <- letter <|> char '_'
       <?> "identifier"
 
 comment :: Parser ()
-comment = do char '#'
+comment = do _ <- char '#'
              skipMany (noneOf "\r\n")
         <?> "comment"
 
 eol :: Parser ()
-eol = do oneOf "\n\r"
+eol = do _ <- oneOf "\n\r"
          return ()
     <?> "end of line"
 
 item :: Parser (String, String)
 item = do key <- ident
           skipMany space
-          char '='
+          _ <- char '='
           skipMany space
           value <- manyTill anyChar (try eol <|> try comment <|> eof)
           return (key, rstrip value)
@@ -67,12 +67,12 @@ line = do skipMany space
           try (comment >> return Nothing) <|> liftM Just item
 
 fileContent :: Parser [(String, String)]
-fileContent = do lines <- many line
-                 return (catMaybes lines)
+fileContent = do allLines <- many line
+                 return (catMaybes allLines)
 
 readConfig :: SourceName -> IO (Either ParseError ConfigMap)
-readConfig name =
-    liftM (liftM Map.fromList) (parseFromFile fileContent name)
+readConfig fileName =
+    liftM (liftM Map.fromList) (parseFromFile fileContent fileName)
 
 getInt :: String -> (ConfigParameter -> Maybe Int) -> ConfigParameter -> Either ParseError ConfigMap -> Maybe Int
 getInt fieldName f confMap (Right confFromFile) =
