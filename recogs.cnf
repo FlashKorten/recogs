@@ -1,0 +1,5 @@
+# Config file for recogs
+
+rows = 3
+cols = 5
+imageDir = ~/Pictures
