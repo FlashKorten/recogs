@@ -1,3 +1,6 @@
+import Data.Bits ( (.&.) )
+import Foreign ( withArray )
+
 import Graphics.Rendering.OpenGL
 import Data.IORef
 import Graphics.UI.GLUT  as GLUT
@@ -7,9 +10,10 @@ import System.Exit ( exitSuccess )
 import Config (getConfig, Config, configRows, configCols)
 
 type Coord = (Int, Int)
-data Game = Game { getCoords :: [Coord]
-                 , getStep   :: Int
-                 , getConf   :: Config
+data Game = Game { getCoords  :: [Coord]
+                 , getStep    :: Int
+                 , getConf    :: Config
+                 , getTexture :: TextureObject
                  }
 
 _WIDTH, _HEIGHT :: GLfloat
@@ -38,11 +42,12 @@ fieldHeight c = _HEIGHT / fromIntegral (configRows c)
 coordinates :: Int -> Int -> [Coord]
 coordinates rows cols = [(r, c)| r <- [0..(rows - 1)], c <- [0..(cols - 1)]]
 
-initGame :: Config -> [Coord] -> Game
-initGame c l = Game { getConf   = c
-                    , getCoords = l
-                    , getStep   = length l
-                    }
+initGame :: Config -> [Coord] -> TextureObject -> Game
+initGame c l t = Game { getConf    = c
+                      , getCoords  = l
+                      , getStep    = length l
+                      , getTexture = t
+                      }
 
 shuffleCoords :: [Coord] -> IO [Coord]
 shuffleCoords = evalRandIO . permute
@@ -57,34 +62,21 @@ reshuffle game = do
     game $= g{getCoords=c}
     display game
 
-main :: IO ()
-main = do
-    (progName,_) <- getArgsAndInitialize
-    conf <- getConfig
-    initialDisplayMode $= [WithDepthBuffer,DoubleBuffered]
-    _ <- createWindow progName
-    setupProjection
-    depthFunc $= Just Less
-    coords <- shuffleCoords $ coordinates (configRows conf) (configCols conf)
-    game <- newIORef $ initGame conf coords
-    displayCallback $= display game
-    -- idleCallback $= Just (idle game)
-    reshapeCallback $= Just reshape
-    keyboardMouseCallback $= Just (keyboard game)
-    mainLoop
-
 display :: IORef Game -> IO ()
 display game = do
     clearColor $= _BLACK
     clear [DepthBuffer,ColorBuffer]
-    displayBackground
+    displayBackground game
     displayForeground game
     swapBuffers
 
-displayBackground :: IO ()
-displayBackground = do
+displayBackground :: IORef Game -> IO ()
+displayBackground game = do
+    g <- get game
+    let tex = getTexture g
+    textureBinding Texture2D $= Just tex
     currentColor $= _RED
-    singleSegment 0 0 _WIDTH _HEIGHT _BACKGROUND_DEPTH
+    textureSegment 0 0 _WIDTH _HEIGHT _BACKGROUND_DEPTH
 
 displayForeground :: IORef Game -> IO ()
 displayForeground game = do
@@ -107,6 +99,19 @@ drawSegment width height (r, c) = do
     translate $ Vector3 x y _FOREGROUND_DEPTH
     singleSegment 0 0 width height 0
     translate $ Vector3 (-x) (-y) (-_FOREGROUND_DEPTH)
+
+textureSegment :: (TexCoordComponent a, VertexComponent a) => a -> a -> a -> a -> a -> IO ()
+textureSegment x1 y1 x2 y2 z =
+    renderPrimitive Quads $ mapM_ makeVertices points
+        where makeVertices (x, y) = do texCoord $ TexCoord3 x y z
+                                       vertex $ Vertex3 x y z
+              points = [(x1,y1),(x2,y1),(x2,y2),(x1,y2)]
+
+singleSegment :: VertexComponent a => a -> a -> a -> a -> a -> IO ()
+singleSegment x1 y1 x2 y2 z =
+    renderPrimitive Quads $ mapM_ makeVertices points
+        where makeVertices (x, y) = vertex $ Vertex3 x y z
+              points = [(x1,y1),(x2,y1),(x2,y2),(x1,y2)]
 
 -- idle game = do
 --     g <- get game
@@ -146,12 +151,6 @@ reshape _ = do
     let size = fixSize (Size 800 600)
     viewport $= (positionForSize size, size)
 
-singleSegment :: VertexComponent a => a -> a -> a -> a -> a -> IO ()
-singleSegment x1 y1 x2 y2 z =
-    renderPrimitive Quads $ mapM_ makeVertices points
-        where makeVertices (x, y) = vertex $ Vertex3 x y z
-              points = [(x1,y1),(x2,y1),(x2,y2),(x1,y2)]
-
 setupProjection :: IO ()
 setupProjection = do
   matrixMode $= Projection
@@ -159,4 +158,52 @@ setupProjection = do
   ortho 0 (realToFrac _WIDTH) 0 (realToFrac _HEIGHT) 0 1
   matrixMode $= Modelview 1
   loadIdentity
+
+main :: IO ()
+main = do
+    (progName,_) <- getArgsAndInitialize
+    conf <- getConfig
+    initialDisplayMode $= [RGBMode, WithDepthBuffer, DoubleBuffered]
+    _ <- createWindow progName
+    setupProjection
+    depthFunc $= Just Less
+    coords <- shuffleCoords $ coordinates (configRows conf) (configCols conf)
+    texNames <- createTexture
+    game <- newIORef $ initGame conf coords texNames
+    displayCallback $= display game
+    -- idleCallback $= Just (idle game)
+    reshapeCallback $= Just reshape
+    keyboardMouseCallback $= Just (keyboard game)
+    mainLoop
+
+-- Create checkerboard image
+checkImageSize :: TextureSize2D
+checkImageSize = TextureSize2D 64 64
+
+withCheckImage :: TextureSize2D -> GLsizei -> (GLubyte -> Color4 GLubyte)
+               -> (PixelData (Color4 GLubyte) -> IO ()) -> IO ()
+withCheckImage (TextureSize2D w h) n f act =
+   withArray [ f c |
+               i <- [ 0 .. w - 1 ],
+               j <- [ 0 .. h - 1 ],
+               let c | (i .&. n) == (j .&. n) = 0
+                     | otherwise              = 255 ] $
+   act . PixelData RGBA UnsignedByte
+
+createTexture :: IO TextureObject
+createTexture = do
+   clearColor $= Color4 0 0 0 0
+   shadeModel $= Flat
+   depthFunc $= Just Less
+   rowAlignment Unpack $= 1
+
+   [imageTexture] <- genObjectNames 1
+   textureBinding Texture2D $= Just imageTexture
+   textureWrapMode Texture2D S $= (Repeated, Clamp)
+   textureWrapMode Texture2D T $= (Repeated, Clamp)
+   textureFilter Texture2D $= ((Nearest, Nothing), Nearest)
+   withCheckImage checkImageSize 0x08 (\c -> Color4 c c c 255) $
+      texImage2D Nothing NoProxy 0  RGBA' checkImageSize 0
+   texture Texture2D $= Enabled
+   return imageTexture
 
