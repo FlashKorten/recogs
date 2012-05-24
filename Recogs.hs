@@ -66,27 +66,20 @@ display :: IORef Game -> IO ()
 display game = do
     clearColor $= _BLACK
     clear [DepthBuffer,ColorBuffer]
-    displayBackground game
-    displayForeground game
-    swapBuffers
-
-displayBackground :: IORef Game -> IO ()
-displayBackground game = do
     g <- get game
     let tex = getTexture g
-    textureBinding Texture2D $= Just tex
-    currentColor $= _RED
-    textureSegment 0 0 _WIDTH _HEIGHT _BACKGROUND_DEPTH
-
-displayForeground :: IORef Game -> IO ()
-displayForeground game = do
-    g <- get game
-    let step   = getStep g
+        step   = getStep g
         coords = getCoords g
         conf   = getConf g
         width  = fieldWidth conf
         height = fieldHeight conf
-    drawSegments width height  $ take step coords
+    -- Background
+    textureBinding Texture2D $= Just tex
+    currentColor $= _RED
+    textureSegment 0 0 _WIDTH _HEIGHT _BACKGROUND_DEPTH
+    -- Foreground
+    drawSegments width height $ take step coords
+    swapBuffers
 
 drawSegments :: GLfloat -> GLfloat -> [Coord] -> IO ()
 drawSegments width height = foldr ((>>) . drawSegment width height) (return ())
