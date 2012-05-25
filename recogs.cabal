@@ -15,6 +15,7 @@ Extra-source-files:
   README.md
   RandomList.hs
   Config.hs
+  ImageReader.hs
 Extra-tmp-files:
   Recogs.hi
   Recogs.o
@@ -22,6 +23,8 @@ Extra-tmp-files:
   RandomList.o
   Config.hi
   Config.o
+  ImageReader.hi
+  ImageReader.o
   Recogs
 
 Executable recogs

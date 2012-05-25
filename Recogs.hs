@@ -176,27 +176,27 @@ checkImageSize = TextureSize2D 64 64
 withCheckImage :: TextureSize2D -> GLsizei -> (GLubyte -> Color4 GLubyte)
                -> (PixelData (Color4 GLubyte) -> IO ()) -> IO ()
 withCheckImage (TextureSize2D w h) n f act =
-   withArray [ f c |
-               i <- [ 0 .. w - 1 ],
-               j <- [ 0 .. h - 1 ],
-               let c | (i .&. n) == (j .&. n) = 0
-                     | otherwise              = 255 ] $
-   act . PixelData RGBA UnsignedByte
+    withArray [ f c |
+                i <- [ 0 .. w - 1 ],
+                j <- [ 0 .. h - 1 ],
+                let c | (i .&. n) == (j .&. n) = 0
+                      | otherwise              = 255 ] $
+    act . PixelData RGBA UnsignedByte
 
 createTexture :: IO TextureObject
 createTexture = do
-   clearColor $= Color4 0 0 0 0
-   shadeModel $= Flat
-   depthFunc $= Just Less
-   rowAlignment Unpack $= 1
+    clearColor $= Color4 0 0 0 0
+    shadeModel $= Flat
+    depthFunc $= Just Less
+    rowAlignment Unpack $= 1
 
-   [imageTexture] <- genObjectNames 1
-   textureBinding Texture2D $= Just imageTexture
-   textureWrapMode Texture2D S $= (Repeated, Clamp)
-   textureWrapMode Texture2D T $= (Repeated, Clamp)
-   textureFilter Texture2D $= ((Nearest, Nothing), Nearest)
-   withCheckImage checkImageSize 0x08 (\c -> Color4 c c c 255) $
-      texImage2D Nothing NoProxy 0  RGBA' checkImageSize 0
-   texture Texture2D $= Enabled
-   return imageTexture
+    [imageTexture] <- genObjectNames 1
+    textureBinding Texture2D $= Just imageTexture
+    textureWrapMode Texture2D S $= (Repeated, Clamp)
+    textureWrapMode Texture2D T $= (Repeated, Clamp)
+    textureFilter Texture2D $= ((Nearest, Nothing), Nearest)
+    withCheckImage checkImageSize 0x08 (\c -> Color4 c c c 255) $
+        texImage2D Nothing NoProxy 0  RGBA' checkImageSize 0
+    texture Texture2D $= Enabled
+    return imageTexture
 
