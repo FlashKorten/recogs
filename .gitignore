@@ -1,6 +1,7 @@
 Recogs
 dist
 cabal-dev
+*.swp
 *.o
 *.hi
 *.chi

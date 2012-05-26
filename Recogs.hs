@@ -1,19 +1,20 @@
-import Data.Bits ( (.&.) )
-import Foreign ( withArray )
-
 import Graphics.Rendering.OpenGL
 import Data.IORef
 import Graphics.UI.GLUT  as GLUT
 import RandomList
+import Codec.Picture.Types
+import Data.Vector.Storable (unsafeWith)
 import Control.Monad.Random
 import System.Exit ( exitSuccess )
-import Config (getConfig, Config, configRows, configCols)
+import Config (getConfig, Config, configRows, configCols, configImages)
+import ImageReader (getImageData)
 
 type Coord = (Int, Int)
 data Game = Game { getCoords  :: [Coord]
                  , getStep    :: Int
                  , getConf    :: Config
                  , getTexture :: TextureObject
+                 , getFileNr  :: Int
                  }
 
 _WIDTH, _HEIGHT :: GLfloat
@@ -27,9 +28,10 @@ _BACKGROUND_DEPTH = 0.8
 _BLACK :: Color4 GLclampf
 _BLACK = Color4 0 0 0 1
 
-_GREY, _RED :: Color4 GLfloat
+_GREY, _RED, _WHITE :: Color4 GLfloat
 _GREY  = Color4 0.3 0.3 0.3 1
 _RED   = Color4 1 0 0 1
+_WHITE = Color4 1 1 1 1
 
 maxSteps :: Config -> Int
 maxSteps c = configRows c * configCols c
@@ -42,15 +44,35 @@ fieldHeight c = _HEIGHT / fromIntegral (configRows c)
 coordinates :: Int -> Int -> [Coord]
 coordinates rows cols = [(r, c)| r <- [0..(rows - 1)], c <- [0..(cols - 1)]]
 
-initGame :: Config -> [Coord] -> TextureObject -> Game
-initGame c l t = Game { getConf    = c
-                      , getCoords  = l
-                      , getStep    = length l
-                      , getTexture = t
-                      }
+initGame :: Config -> [Coord] -> TextureObject -> Int -> Game
+initGame c l t n = Game { getConf    = c
+                        , getCoords  = l
+                        , getStep    = length l
+                        , getTexture = t
+                        , getFileNr  = n
+                        }
 
 shuffleCoords :: [Coord] -> IO [Coord]
 shuffleCoords = evalRandIO . permute
+
+changeImage :: IORef Game -> (Int -> Int) -> IO ()
+changeImage game f = do
+    g <- get game
+    let conf      = getConf g
+        imgFiles  = configImages conf
+        fileNr    = getFileNr g
+        newFileNr = rangeCheck 0 (length imgFiles) $ f fileNr
+    putStrLn $ "Old: " ++ (show fileNr) ++ ", new: " ++ (show newFileNr)
+    if fileNr == newFileNr
+    then return ()
+    else do
+      clearColor $= _BLACK
+      clear [DepthBuffer,ColorBuffer]
+      swapBuffers
+      image <- getImageData $ head $ drop (newFileNr) imgFiles
+      tex <- createTexture image
+      game $= g{getTexture=tex,getFileNr=(newFileNr)}
+      display game
 
 reshuffle :: IORef Game -> IO ()
 reshuffle game = do
@@ -67,17 +89,18 @@ display game = do
     clearColor $= _BLACK
     clear [DepthBuffer,ColorBuffer]
     g <- get game
-    let tex = getTexture g
+    let tex    = getTexture g
         step   = getStep g
         coords = getCoords g
         conf   = getConf g
         width  = fieldWidth conf
         height = fieldHeight conf
     -- Background
+    currentColor $= _WHITE
     textureBinding Texture2D $= Just tex
-    currentColor $= _RED
     textureSegment 0 0 _WIDTH _HEIGHT _BACKGROUND_DEPTH
     -- Foreground
+    textureBinding Texture2D $= Nothing
     drawSegments width height $ take step coords
     swapBuffers
 
@@ -93,10 +116,10 @@ drawSegment width height (r, c) = do
     singleSegment 0 0 width height 0
     translate $ Vector3 (-x) (-y) (-_FOREGROUND_DEPTH)
 
-textureSegment :: (TexCoordComponent a, VertexComponent a) => a -> a -> a -> a -> a -> IO ()
+textureSegment :: (Num a, TexCoordComponent a, VertexComponent a) => a -> a -> a -> a -> a -> IO ()
 textureSegment x1 y1 x2 y2 z =
     renderPrimitive Quads $ mapM_ makeVertices points
-        where makeVertices (x, y) = do texCoord $ TexCoord3 x y z
+        where makeVertices (x, y) = do texCoord $ TexCoord3 x (1-y) z
                                        vertex $ Vertex3 x y z
               points = [(x1,y1),(x2,y1),(x2,y2),(x1,y2)]
 
@@ -128,6 +151,8 @@ keyboard game (Char 'n') Down _ _ = doNextStep game (flip (-) 1)
 keyboard game (Char 'b') Down _ _ = doNextStep game (+1)
 keyboard game (Char 'c') Down _ _ = doNextStep game (*0)
 keyboard game (Char 's') Down _ _ = reshuffle game
+keyboard game (Char 'N') Down _ _ = changeImage game (+1)
+keyboard game (Char 'B') Down _ _ = changeImage game (flip (-) 1)
 keyboard _  (Char '\27') Down _ _ = exitSuccess
 keyboard _ _ _ _ _                = return ()
 
@@ -139,9 +164,9 @@ fixSize (Size w h) = Size (2*w) (2*h)
 
 reshape :: t -> IO ()
 reshape _ = do
-    -- screen <- get screenSize
-    -- let size = fixSize screen
-    let size = fixSize (Size 800 600)
+    screen <- get screenSize
+    let size = fixSize screen
+    -- let size = fixSize (Size 800 600)
     viewport $= (positionForSize size, size)
 
 setupProjection :: IO ()
@@ -161,30 +186,33 @@ main = do
     setupProjection
     depthFunc $= Just Less
     coords <- shuffleCoords $ coordinates (configRows conf) (configCols conf)
-    texNames <- createTexture
-    game <- newIORef $ initGame conf coords texNames
+    let images = configImages conf
+    _ <- mapM putStrLn images
+    image <- getImageData $ head images
+    tex <- createTexture image
+    game <- newIORef $ initGame conf coords tex 0
     displayCallback $= display game
     -- idleCallback $= Just (idle game)
     reshapeCallback $= Just reshape
     keyboardMouseCallback $= Just (keyboard game)
     mainLoop
 
--- Create checkerboard image
-checkImageSize :: TextureSize2D
-checkImageSize = TextureSize2D 64 64
+-- texture
+-- loadTexture :: FilePath -> Maybe Image PixelRGB8
+-- loadTexture filePath = do
+--     i <- getImagedata filePath
+--     case i of
+--         Nothing  -> exitFailure
+--         Just image
 
-withCheckImage :: TextureSize2D -> GLsizei -> (GLubyte -> Color4 GLubyte)
-               -> (PixelData (Color4 GLubyte) -> IO ()) -> IO ()
-withCheckImage (TextureSize2D w h) n f act =
-    withArray [ f c |
-                i <- [ 0 .. w - 1 ],
-                j <- [ 0 .. h - 1 ],
-                let c | (i .&. n) == (j .&. n) = 0
-                      | otherwise              = 255 ] $
-    act . PixelData RGBA UnsignedByte
+mapTexture :: Image PixelRGB8 -> IO ()
+mapTexture (Image width height dat)
+  = unsafeWith dat pointerFunc
+    where pointerFunc ptr = texImage2D Nothing NoProxy 0 RGB8 texSize 0 (PixelData RGB UnsignedByte ptr)
+          texSize = TextureSize2D (fromIntegral width) (fromIntegral height)
 
-createTexture :: IO TextureObject
-createTexture = do
+createTexture :: Maybe (Image PixelRGB8) -> IO TextureObject
+createTexture (Just image) = do
     clearColor $= Color4 0 0 0 0
     shadeModel $= Flat
     depthFunc $= Just Less
@@ -192,11 +220,10 @@ createTexture = do
 
     [imageTexture] <- genObjectNames 1
     textureBinding Texture2D $= Just imageTexture
+    textureFilter   Texture2D   $= ((Linear', Nothing), Linear')
     textureWrapMode Texture2D S $= (Repeated, Clamp)
     textureWrapMode Texture2D T $= (Repeated, Clamp)
-    textureFilter Texture2D $= ((Nearest, Nothing), Nearest)
-    withCheckImage checkImageSize 0x08 (\c -> Color4 c c c 255) $
-        texImage2D Nothing NoProxy 0  RGBA' checkImageSize 0
+    mapTexture image
     texture Texture2D $= Enabled
     return imageTexture
 

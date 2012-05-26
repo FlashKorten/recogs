@@ -7,11 +7,14 @@ module Config(
               configCols
              ) where
 import Data.Char
+import Data.List
 import Control.Monad
 import qualified Data.Map as Map
 import Text.ParserCombinators.Parsec
 import Data.Maybe
 import System.Console.CmdArgs
+import System.Directory
+import System.FilePath
 
 data ConfigParameter = ConfigParameter {file :: String
                                        ,imageDir   :: Maybe String
@@ -88,10 +91,30 @@ getSorted confMap (Right confFromFile) =
           Nothing -> fmap read (Map.lookup "sorted" confFromFile)
 getSorted _ (Left _) = Nothing
 
+getImageDir :: ConfigParameter -> Either ParseError ConfigMap -> Maybe FilePath
+getImageDir confMap (Right confFromFile) =
+        case imageDir confMap of
+          Just n  -> Just n
+          Nothing -> fmap read (Map.lookup "imagedir" confFromFile)
+getImageDir _ (Left _) = Nothing
+
+getImages :: Maybe FilePath -> IO [FilePath]
+getImages Nothing         = return []
+getImages (Just filePath) = liftM (map (filePath </>). sort) $ getDirectoryContents filePath
+
+imageFile :: FilePath -> Bool
+imageFile filePath = fileType == ".jpg"
+                  || fileType == ".jpeg"
+                  || fileType == ".png"
+                  where fileType = (map toLower) $ takeExtension filePath
+
 getConfig :: IO Config
 getConfig = do
     c <- cmdArgs configParameter
     confFromFile <- readConfig $ file c
     let r' = getInt "rows" rows c confFromFile
         c' = getInt "cols" cols c confFromFile
-    return Config{configImages=["eins"], configRows = fromMaybe 3 r', configCols = fromMaybe 4 c'}
+        d' = getImageDir c confFromFile
+    imgDir <- getImages d'
+    let imageFiles = filter imageFile imgDir
+    return Config{configImages=imageFiles, configRows = fromMaybe 3 r', configCols = fromMaybe 4 c'}
