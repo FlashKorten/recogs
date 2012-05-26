@@ -103,10 +103,8 @@ getImages Nothing         = return []
 getImages (Just filePath) = liftM (map (filePath </>). sort) $ getDirectoryContents filePath
 
 imageFile :: FilePath -> Bool
-imageFile filePath = fileType == ".jpg"
-                  || fileType == ".jpeg"
-                  || fileType == ".png"
-                  where fileType = (map toLower) $ takeExtension filePath
+imageFile filePath = fileType `elem` [".jpg", ".jpeg", ".png"]
+                  where fileType = map toLower $ takeExtension filePath
 
 getConfig :: IO Config
 getConfig = do

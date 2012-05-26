@@ -8,6 +8,7 @@ import Control.Monad.Random
 import System.Exit ( exitSuccess )
 import Config (getConfig, Config, configRows, configCols, configImages)
 import ImageReader (getImageData)
+import Control.Monad (unless)
 
 type Coord = (Int, Int)
 data Game = Game { getCoords  :: [Coord]
@@ -62,17 +63,15 @@ changeImage game f = do
         imgFiles  = configImages conf
         fileNr    = getFileNr g
         newFileNr = rangeCheck 0 (length imgFiles) $ f fileNr
-    putStrLn $ "Old: " ++ (show fileNr) ++ ", new: " ++ (show newFileNr)
-    if fileNr == newFileNr
-    then return ()
-    else do
-      clearColor $= _BLACK
-      clear [DepthBuffer,ColorBuffer]
-      swapBuffers
-      image <- getImageData $ head $ drop (newFileNr) imgFiles
-      tex <- createTexture image
-      game $= g{getTexture=tex,getFileNr=(newFileNr)}
-      display game
+    putStrLn $ "Old: " ++ show fileNr ++ ", new: " ++ show newFileNr
+    unless (fileNr == newFileNr) $ do
+        clearColor $= _BLACK
+        clear [DepthBuffer,ColorBuffer]
+        swapBuffers
+        image <- getImageData (imgFiles !! newFileNr)
+        tex <- createTexture image
+        game $= g{getTexture=tex,getFileNr=newFileNr}
+        display game
 
 reshuffle :: IORef Game -> IO ()
 reshuffle game = do

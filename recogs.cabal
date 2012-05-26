@@ -32,6 +32,10 @@ Executable recogs
     Recogs.hs
   Build-depends:
     base,
+    JuicyPixels,
+    directory,
+    vector,
+    filepath,
     MonadRandom,
     OpenGL,
     parsec,
