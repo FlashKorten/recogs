@@ -10,12 +10,16 @@ import ImageReader (getImageData)
 import Control.Monad (unless)
 
 type Coord = (Int, Int)
+
+data TextureData = TextureData { getTextureObject :: TextureObject
+                       , getTextureWidth  :: Int
+                       , getTextureHeight :: Int
+                       } deriving Show
+
 data Game = Game { getCoords  :: [Coord]
                  , getStep    :: Int
                  , getConf    :: Config
-                 , getTexture :: TextureObject
-                 , getTWidth  :: Int
-                 , getTHeight :: Int
+                 , getTexture :: TextureData
                  , getFileNr  :: Int
                  } deriving Show
 
@@ -46,15 +50,13 @@ fieldHeight c = _HEIGHT / fromIntegral (configRows c)
 coordinates :: Int -> Int -> [Coord]
 coordinates rows cols = [(r, c)| r <- [0..(rows - 1)], c <- [0..(cols - 1)]]
 
-initGame :: Config -> [Coord] -> TextureObject -> Int -> Int -> Int -> Game
-initGame c l t n tw th = Game { getConf    = c
-                                    , getCoords  = l
-                                    , getStep    = length l
-                                    , getTexture = t
-                                    , getFileNr  = n
-                                    , getTWidth  = tw
-                                    , getTHeight = th
-                                    }
+initGame :: Config -> [Coord] -> TextureData -> Int -> Game
+initGame c l t n = Game { getConf    = c
+                        , getCoords  = l
+                        , getStep    = length l
+                        , getTexture = t
+                        , getFileNr  = n
+                        }
 
 changeImage :: IORef Game -> (Int -> Int) -> IO ()
 changeImage game f = do
@@ -63,7 +65,6 @@ changeImage game f = do
         imgFiles  = configImages config
         fileNr    = getFileNr g
         newFileNr = rangeCheck 0 (length imgFiles) $ f fileNr
-    putStrLn $ "Old: " ++ show fileNr ++ ", new: " ++ show newFileNr
     unless (fileNr == newFileNr) $ do
         showBlackBuffer
         image <- getImageData (imgFiles !! newFileNr)
@@ -71,10 +72,8 @@ changeImage game f = do
             h'     = configHeight config
             (w, h) = getSizeFromMaybeImage image w' h'
         tex <- createTexture image
-        game $= g{ getTexture = tex
+        game $= g{ getTexture = TextureData tex w h
                  , getFileNr  = newFileNr
-                 , getTWidth  = w
-                 , getTHeight = h
                  }
         reshape game (Size (fromIntegral w') (fromIntegral h'))
         display game
@@ -101,9 +100,7 @@ nextRound game = do
         game $= g{ getCoords  = c
                  , getFileNr  = fileNr + 1
                  , getStep    = length c
-                 , getTexture = tex
-                 , getTWidth  = w
-                 , getTHeight = h
+                 , getTexture = TextureData tex w h
                  }
         reshape game (Size (fromIntegral w') (fromIntegral h'))
         display game
@@ -137,7 +134,7 @@ display game = do
         height = fieldHeight conf
     -- Background
     currentColor $= _WHITE
-    textureBinding Texture2D $= Just tex
+    textureBinding Texture2D $= Just (getTextureObject tex)
     textureSegment 0 0 _WIDTH _HEIGHT _BACKGROUND_DEPTH
     -- Foreground
     textureBinding Texture2D $= Nothing
@@ -211,8 +208,9 @@ calculateSize texWidth texHeight screenWidth screenHeight
 getNewSize :: Game -> IO Size
 getNewSize game = do
     let config  = getConf game
-        tWidth  = getTWidth game
-        tHeight = getTHeight game
+        tex     = getTexture game
+        tWidth  = getTextureWidth tex
+        tHeight = getTextureHeight tex
         sWidth  = configWidth config
         sHeight = configHeight config
         (w, h)  = calculateSize tWidth tHeight sWidth sHeight
@@ -256,7 +254,7 @@ main = do
     let w'     = configWidth conf
         h'     = configHeight conf
         (w, h) = getSizeFromMaybeImage image w' h'
-    game <- newIORef $ initGame conf coords tex 0 w h
+    game <- newIORef $ initGame conf coords (TextureData tex w h) 0
     displayCallback $= display game
     reshapeCallback $= Just (reshape game)
     keyboardMouseCallback $= Just (keyboard game)
