@@ -5,7 +5,7 @@ import RandomList
 import Codec.Picture.Types
 import Data.Vector.Storable (unsafeWith)
 import System.Exit ( exitSuccess, exitFailure )
-import Config (getConfig, Config, configRows, configCols, configImages)
+import Config
 import ImageReader (getImageData)
 import Control.Monad (unless)
 
@@ -14,8 +14,10 @@ data Game = Game { getCoords  :: [Coord]
                  , getStep    :: Int
                  , getConf    :: Config
                  , getTexture :: TextureObject
+                 , getTWidth  :: Int
+                 , getTHeight :: Int
                  , getFileNr  :: Int
-                 }
+                 } deriving Show
 
 _WIDTH, _HEIGHT :: GLfloat
 _WIDTH = 1
@@ -44,29 +46,37 @@ fieldHeight c = _HEIGHT / fromIntegral (configRows c)
 coordinates :: Int -> Int -> [Coord]
 coordinates rows cols = [(r, c)| r <- [0..(rows - 1)], c <- [0..(cols - 1)]]
 
-initGame :: Config -> [Coord] -> TextureObject -> Int -> Game
-initGame c l t n = Game { getConf    = c
-                        , getCoords  = l
-                        , getStep    = length l
-                        , getTexture = t
-                        , getFileNr  = n
-                        }
+initGame :: Config -> [Coord] -> TextureObject -> Int -> Int -> Int -> Game
+initGame c l t n tw th = Game { getConf    = c
+                                    , getCoords  = l
+                                    , getStep    = length l
+                                    , getTexture = t
+                                    , getFileNr  = n
+                                    , getTWidth  = tw
+                                    , getTHeight = th
+                                    }
 
 changeImage :: IORef Game -> (Int -> Int) -> IO ()
 changeImage game f = do
     g <- get game
-    let conf      = getConf g
-        imgFiles  = configImages conf
+    let config    = getConf g
+        imgFiles  = configImages config
         fileNr    = getFileNr g
         newFileNr = rangeCheck 0 (length imgFiles) $ f fileNr
     putStrLn $ "Old: " ++ show fileNr ++ ", new: " ++ show newFileNr
     unless (fileNr == newFileNr) $ do
         showBlackBuffer
         image <- getImageData (imgFiles !! newFileNr)
+        let w'     = configWidth config
+            h'     = configHeight config
+            (w, h) = getSizeFromMaybeImage image w' h'
         tex <- createTexture image
         game $= g{ getTexture = tex
                  , getFileNr  = newFileNr
+                 , getTWidth  = w
+                 , getTHeight = h
                  }
+        reshape game (Size (fromIntegral w') (fromIntegral h'))
         display game
 
 nextRound :: IORef Game -> IO ()
@@ -84,12 +94,18 @@ nextRound game = do
             newFileNr = fileNr + 1
         c <- shuffle $ coordinates rows cols
         image <- getImageData (imgFiles !! newFileNr)
+        let w'     = configWidth config
+            h'     = configHeight config
+            (w, h) = getSizeFromMaybeImage image w' h'
         tex <- createTexture image
         game $= g{ getCoords  = c
                  , getFileNr  = fileNr + 1
                  , getStep    = length c
                  , getTexture = tex
+                 , getTWidth  = w
+                 , getTHeight = h
                  }
+        reshape game (Size (fromIntegral w') (fromIntegral h'))
         display game
 
 showBlackBuffer :: IO ()
@@ -153,10 +169,6 @@ singleSegment x1 y1 x2 y2 z =
         where makeVertices (x, y) = vertex $ Vertex3 x y z
               points = [(x1,y1),(x2,y1),(x2,y2),(x1,y2)]
 
--- idle game = do
---     g <- get game
---     postRedisplay Nothing
-
 rangeCheck :: Ord a => a -> a -> a -> a
 rangeCheck lowerBound upperBound n
     | n < lowerBound = lowerBound
@@ -187,11 +199,32 @@ positionForSize (Size w h) = Position (-fromIntegral w`div`2) (-fromIntegral h`d
 fixSize :: Size -> Size
 fixSize (Size w h) = Size (2*w) (2*h)
 
-reshape :: t -> IO ()
-reshape _ = do
-    screen <- get screenSize
-    let size = fixSize screen
-    -- let size = fixSize (Size 800 600)
+calculateSize :: Int -> Int -> Int -> Int -> (Int, Int)
+calculateSize texWidth texHeight screenWidth screenHeight
+    = (floor $ factor * fromIntegral texWidth, floor $ factor * fromIntegral texHeight)
+        where widthFactor  = f screenWidth texWidth
+              heightFactor = f screenHeight texHeight
+              factor       = min widthFactor heightFactor
+              f :: Int -> Int -> Double
+              f x y        = fromIntegral x / fromIntegral y
+
+getNewSize :: Game -> IO Size
+getNewSize game = do
+    let config  = getConf game
+        tWidth  = getTWidth game
+        tHeight = getTHeight game
+        sWidth  = configWidth config
+        sHeight = configHeight config
+        (w, h)  = calculateSize tWidth tHeight sWidth sHeight
+    return $ Size (fromIntegral w) (fromIntegral h)
+
+reshape :: IORef Game -> a -> IO ()
+reshape game _ = do
+    g <- get game
+    s <- getNewSize g
+    -- screen <- get screenSize
+    -- let size = fixSize screen
+    let size = fixSize s
     viewport $= (positionForSize size, size)
 
 setupProjection :: IO ()
@@ -201,6 +234,10 @@ setupProjection = do
   ortho 0 (realToFrac _WIDTH) 0 (realToFrac _HEIGHT) 0 1
   matrixMode $= Modelview 1
   loadIdentity
+
+getSizeFromMaybeImage :: Maybe (Image PixelRGB8) -> Int -> Int -> (Int, Int)
+getSizeFromMaybeImage Nothing w h              = (w, h)
+getSizeFromMaybeImage (Just (Image w h _)) _ _ = (w, h)
 
 main :: IO ()
 main = do
@@ -213,13 +250,15 @@ main = do
     coords <- shuffle $ coordinates (configRows conf) (configCols conf)
     let images    = configImages conf
         imageFile = head images
-    -- _ <- mapM putStrLn images
     image <- getImageData imageFile
     tex <- createTexture image
-    game <- newIORef $ initGame conf coords tex 0
+    fullScreen
+    let w'     = configWidth conf
+        h'     = configHeight conf
+        (w, h) = getSizeFromMaybeImage image w' h'
+    game <- newIORef $ initGame conf coords tex 0 w h
     displayCallback $= display game
-    -- idleCallback $= Just (idle game)
-    reshapeCallback $= Just reshape
+    reshapeCallback $= Just (reshape game)
     keyboardMouseCallback $= Just (keyboard game)
     mainLoop
 
