@@ -1,6 +1,6 @@
 -- apfelmus 2009. This code is hereby released into public domain.
 module RandomList(
-         permute
+         shuffle
         ) where
 
 import Control.Monad.Random
@@ -24,13 +24,14 @@ merge rxs rys = do
         ys <- rys
         merge' (length xs, xs) (length ys, ys)
     where
-    merge' (0 , [])   (_ , ys)   = return ys
-    merge' (_ , xs)   (0 , [])   = return xs
-    merge' (nx, x:xs) (ny, y:ys) = do
+      merge' (0 , [])   (_ , ys)   = return ys
+      merge' (_ , xs)   (0 , [])   = return xs
+      merge' (nx, x:xs) (ny, y:ys) = do
         k <- getRandomR (1,nx+ny)   -- selection weighted by size
         if k <= nx
             then (x:) `liftM` ((nx-1, xs) `merge'` (ny, y:ys))
             else (y:) `liftM` ((nx, x:xs) `merge'` (ny-1, ys))
+      merge' (_ , a) _             = return a -- This will not happen... only to suppress warnings.
 
     -- Generate a random permutation in O(n log n)
 permute :: [a] -> RandomList a
@@ -40,3 +41,6 @@ permute = permuteList
     permuteList [x] = singleton x
     permuteList xs  = permuteList l `merge` permuteList r
         where (l,r) = splitAt (length xs `div` 2) xs
+
+shuffle :: [a] -> IO [a]
+shuffle = evalRandIO . permute

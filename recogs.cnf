@@ -2,4 +2,5 @@
 
 rows = 3
 cols = 5
-imageDir = ~/Pictures
+imagedir = "/home/sebastian/Pictures"
+shuffled = True

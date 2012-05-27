@@ -4,8 +4,7 @@ import Graphics.UI.GLUT  as GLUT
 import RandomList
 import Codec.Picture.Types
 import Data.Vector.Storable (unsafeWith)
-import Control.Monad.Random
-import System.Exit ( exitSuccess )
+import System.Exit ( exitSuccess, exitFailure )
 import Config (getConfig, Config, configRows, configCols, configImages)
 import ImageReader (getImageData)
 import Control.Monad (unless)
@@ -53,9 +52,6 @@ initGame c l t n = Game { getConf    = c
                         , getFileNr  = n
                         }
 
-shuffleCoords :: [Coord] -> IO [Coord]
-shuffleCoords = evalRandIO . permute
-
 changeImage :: IORef Game -> (Int -> Int) -> IO ()
 changeImage game f = do
     g <- get game
@@ -65,13 +61,42 @@ changeImage game f = do
         newFileNr = rangeCheck 0 (length imgFiles) $ f fileNr
     putStrLn $ "Old: " ++ show fileNr ++ ", new: " ++ show newFileNr
     unless (fileNr == newFileNr) $ do
-        clearColor $= _BLACK
-        clear [DepthBuffer,ColorBuffer]
-        swapBuffers
+        showBlackBuffer
         image <- getImageData (imgFiles !! newFileNr)
         tex <- createTexture image
-        game $= g{getTexture=tex,getFileNr=newFileNr}
+        game $= g{ getTexture = tex
+                 , getFileNr  = newFileNr
+                 }
         display game
+
+nextRound :: IORef Game -> IO ()
+nextRound game = do
+    g <- get game
+    let fileNr    = getFileNr g
+        config    = getConf g
+        imgFiles  = configImages config
+    if fileNr == length imgFiles - 1
+      then exitSuccess
+      else do
+        showBlackBuffer
+        let rows      = configRows config
+            cols      = configCols config
+            newFileNr = fileNr + 1
+        c <- shuffle $ coordinates rows cols
+        image <- getImageData (imgFiles !! newFileNr)
+        tex <- createTexture image
+        game $= g{ getCoords  = c
+                 , getFileNr  = fileNr + 1
+                 , getStep    = length c
+                 , getTexture = tex
+                 }
+        display game
+
+showBlackBuffer :: IO ()
+showBlackBuffer = do
+    clearColor $= _BLACK
+    clear [DepthBuffer,ColorBuffer]
+    swapBuffers
 
 reshuffle :: IORef Game -> IO ()
 reshuffle game = do
@@ -79,7 +104,7 @@ reshuffle game = do
     let conf = getConf g
         rows = configRows conf
         cols = configCols conf
-    c <- shuffleCoords $ coordinates rows cols
+    c <- shuffle $ coordinates rows cols
     game $= g{getCoords=c}
     display game
 
@@ -149,6 +174,7 @@ keyboard :: IORef Game -> Key -> KeyState -> a -> b -> IO ()
 keyboard game (Char 'n') Down _ _ = doNextStep game (flip (-) 1)
 keyboard game (Char 'b') Down _ _ = doNextStep game (+1)
 keyboard game (Char 'c') Down _ _ = doNextStep game (*0)
+keyboard game (Char 'd') Down _ _ = nextRound game
 keyboard game (Char 's') Down _ _ = reshuffle game
 keyboard game (Char 'N') Down _ _ = changeImage game (+1)
 keyboard game (Char 'B') Down _ _ = changeImage game (flip (-) 1)
@@ -184,10 +210,11 @@ main = do
     _ <- createWindow progName
     setupProjection
     depthFunc $= Just Less
-    coords <- shuffleCoords $ coordinates (configRows conf) (configCols conf)
-    let images = configImages conf
-    _ <- mapM putStrLn images
-    image <- getImageData $ head images
+    coords <- shuffle $ coordinates (configRows conf) (configCols conf)
+    let images    = configImages conf
+        imageFile = head images
+    -- _ <- mapM putStrLn images
+    image <- getImageData imageFile
     tex <- createTexture image
     game <- newIORef $ initGame conf coords tex 0
     displayCallback $= display game
@@ -195,14 +222,6 @@ main = do
     reshapeCallback $= Just reshape
     keyboardMouseCallback $= Just (keyboard game)
     mainLoop
-
--- texture
--- loadTexture :: FilePath -> Maybe Image PixelRGB8
--- loadTexture filePath = do
---     i <- getImagedata filePath
---     case i of
---         Nothing  -> exitFailure
---         Just image
 
 mapTexture :: Image PixelRGB8 -> IO ()
 mapTexture (Image width height dat)
@@ -225,4 +244,4 @@ createTexture (Just image) = do
     mapTexture image
     texture Texture2D $= Enabled
     return imageTexture
-
+createTexture Nothing = putStrLn "Fatal error reading image..." >> exitFailure

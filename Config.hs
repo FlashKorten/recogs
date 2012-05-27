@@ -15,21 +15,22 @@ import Data.Maybe
 import System.Console.CmdArgs
 import System.Directory
 import System.FilePath
+import RandomList (shuffle)
 
-data ConfigParameter = ConfigParameter {file :: String
-                                       ,imageDir   :: Maybe String
-                                       ,rows       :: Maybe Int
-                                       ,cols       :: Maybe Int
-                                       ,sorted     :: Maybe Bool
+data ConfigParameter = ConfigParameter { file     :: String
+                                       , imagedir :: Maybe String
+                                       , rows     :: Maybe Int
+                                       , cols     :: Maybe Int
+                                       , shuffled :: Maybe Bool
                                        }
               deriving (Show, Data, Typeable)
 
 configParameter :: ConfigParameter
-configParameter = ConfigParameter{file       = "~/.recogs/recogs.cnf"
-                                 ,imageDir   = Nothing
-                                 ,rows       = Nothing
-                                 ,cols       = Nothing
-                                 ,sorted     = Nothing
+configParameter = ConfigParameter{ file     = "recogs.cnf"
+                                 , imagedir = Nothing
+                                 , rows     = Nothing
+                                 , cols     = Nothing
+                                 , shuffled = Nothing
                                  }
 
 data Config = Config {configImages :: [String]
@@ -84,23 +85,25 @@ getInt fieldName f confMap (Right confFromFile) =
           Nothing -> fmap read (Map.lookup fieldName confFromFile)
 getInt _ _ _ (Left _) = Nothing
 
-getSorted :: ConfigParameter -> Either ParseError ConfigMap -> Maybe Bool
-getSorted confMap (Right confFromFile) =
-        case sorted confMap of
+getShuffled :: ConfigParameter -> Either ParseError ConfigMap -> Maybe Bool
+getShuffled confMap (Right confFromFile) =
+        case shuffled confMap of
           Just n  -> Just n
-          Nothing -> fmap read (Map.lookup "sorted" confFromFile)
-getSorted _ (Left _) = Nothing
+          Nothing -> fmap read (Map.lookup "shuffled" confFromFile)
+getShuffled _ (Left _) = Nothing
 
 getImageDir :: ConfigParameter -> Either ParseError ConfigMap -> Maybe FilePath
 getImageDir confMap (Right confFromFile) =
-        case imageDir confMap of
+        case imagedir confMap of
           Just n  -> Just n
           Nothing -> fmap read (Map.lookup "imagedir" confFromFile)
 getImageDir _ (Left _) = Nothing
 
-getImages :: Maybe FilePath -> IO [FilePath]
-getImages Nothing         = return []
-getImages (Just filePath) = liftM (map (filePath </>). sort) $ getDirectoryContents filePath
+getImages :: Maybe FilePath -> Bool -> IO [FilePath]
+getImages Nothing         _      = return []
+getImages (Just filePath) random
+    | random    = liftM (map (filePath </>))       $ shuffle =<< getDirectoryContents filePath
+    | otherwise = liftM (map (filePath </>). sort) $ getDirectoryContents filePath
 
 imageFile :: FilePath -> Bool
 imageFile filePath = fileType `elem` [".jpg", ".jpeg", ".png"]
@@ -113,6 +116,7 @@ getConfig = do
     let r' = getInt "rows" rows c confFromFile
         c' = getInt "cols" cols c confFromFile
         d' = getImageDir c confFromFile
-    imgDir <- getImages d'
+        s' = fromMaybe False $ getShuffled c confFromFile
+    imgDir <- getImages d' s'
     let imageFiles = filter imageFile imgDir
     return Config{configImages=imageFiles, configRows = fromMaybe 3 r', configCols = fromMaybe 4 c'}
