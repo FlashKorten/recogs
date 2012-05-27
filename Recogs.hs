@@ -66,17 +66,11 @@ changeImage game f = do
         fileNr    = getFileNr g
         newFileNr = rangeCheck 0 (length imgFiles) $ f fileNr
     unless (fileNr == newFileNr) $ do
-        showBlackBuffer
-        image <- getImageData (imgFiles !! newFileNr)
-        let w'     = configWidth config
-            h'     = configHeight config
-            (w, h) = getSizeFromMaybeImage image w' h'
-        tex <- createTexture image
-        game $= g{ getTexture = TextureData tex w h
+        textureData <- getTextureByIndex config newFileNr
+        game $= g{ getTexture = textureData
                  , getFileNr  = newFileNr
                  }
-        reshape game (Size (fromIntegral w') (fromIntegral h'))
-        display game
+        displayReshaped game textureData
 
 nextRound :: IORef Game -> IO ()
 nextRound game = do
@@ -87,22 +81,22 @@ nextRound game = do
     if fileNr == length imgFiles - 1
       then exitSuccess
       else do
-        showBlackBuffer
         let rows      = configRows config
             cols      = configCols config
-            newFileNr = fileNr + 1
         c <- shuffle $ coordinates rows cols
-        image <- getImageData (imgFiles !! newFileNr)
-        let w'     = configWidth config
-            h'     = configHeight config
-            (w, h) = getSizeFromMaybeImage image w' h'
-        tex <- createTexture image
+        textureData <- getTextureByIndex config $ fileNr + 1
         game $= g{ getCoords  = c
                  , getFileNr  = fileNr + 1
                  , getStep    = length c
-                 , getTexture = TextureData tex w h
+                 , getTexture = textureData
                  }
-        reshape game (Size (fromIntegral w') (fromIntegral h'))
+        displayReshaped game textureData
+
+displayReshaped :: IORef Game -> TextureData -> IO ()
+displayReshaped game textureData = do
+        let w = fromIntegral $ getTextureWidth textureData
+            h = fromIntegral $ getTextureHeight textureData
+        reshape game (Size w h)
         display game
 
 showBlackBuffer :: IO ()
@@ -110,6 +104,16 @@ showBlackBuffer = do
     clearColor $= _BLACK
     clear [DepthBuffer,ColorBuffer]
     swapBuffers
+
+getTextureByIndex :: Config -> Int -> IO TextureData
+getTextureByIndex c i = do
+        showBlackBuffer
+        image <- getImageData (configImages c !! i)
+        let w'     = configWidth c
+            h'     = configHeight c
+            (w, h) = getSizeFromMaybeImage image w' h'
+        tex <- createTexture image
+        return $ TextureData tex w h
 
 reshuffle :: IORef Game -> IO ()
 reshuffle game = do
