@@ -96,12 +96,14 @@ showBlackBuffer = do
 getTextureByIndex :: Config -> Int -> IO TextureData
 getTextureByIndex c i = do
         showBlackBuffer
-        image <- getImageData (configImages c !! i)
-        let w'     = configWidth c
-            h'     = configHeight c
-            (w, h) = getSizeFromMaybeImage image w' h'
-        tex <- createTexture image
-        return $ TextureData tex w h
+        let imageName = (configImages c !! i)
+        image <- getImageData imageName
+        case image of
+          Nothing  -> putStrLn ("Fatal error reading image..." ++ imageName) >> exitFailure
+          Just img -> do
+            let (w, h) = getSizeFromMaybeImage image (configWidth c) (configHeight c)
+            tex <- createTexture img
+            return $ TextureData tex w h
 
 reshuffle :: IORef Game -> IO ()
 reshuffle game = do
@@ -236,19 +238,13 @@ main :: IO ()
 main = do
     (progName,_) <- getArgsAndInitialize
     conf <- getConfig
+    coords <- shuffle $ coordinates (configRows conf) (configCols conf)
     initialDisplayMode $= [RGBMode, WithDepthBuffer, DoubleBuffered]
     _ <- createWindow progName
     setupProjection
     depthFunc $= Just Less
-    coords <- shuffle $ coordinates (configRows conf) (configCols conf)
-    let images    = configImages conf
-        imageFile = head images
-    image <- getImageData imageFile
-    tex <- createTexture image
-    let w'     = configWidth conf
-        h'     = configHeight conf
-        (w, h) = getSizeFromMaybeImage image w' h'
-    game <- newIORef $ initGame conf coords (TextureData tex w h) 0
+    textureData <- getTextureByIndex conf 0
+    game <- newIORef $ initGame conf coords textureData 0
     displayCallback $= display game
     reshapeCallback $= Just (reshape game)
     keyboardMouseCallback $= Just (keyboard game)
@@ -260,8 +256,8 @@ mapTexture (Image width height dat)
     where pointerFunc ptr = texImage2D Nothing NoProxy 0 RGB8 texSize 0 (PixelData RGB UnsignedByte ptr)
           texSize = TextureSize2D (fromIntegral width) (fromIntegral height)
 
-createTexture :: Maybe (Image PixelRGB8) -> IO TextureObject
-createTexture (Just image) = do
+createTexture :: Image PixelRGB8 -> IO TextureObject
+createTexture image = do
     clearColor $= Color4 0 0 0 0
     shadeModel $= Flat
     depthFunc $= Just Less
@@ -275,4 +271,3 @@ createTexture (Just image) = do
     mapTexture image
     texture Texture2D $= Enabled
     return imageTexture
-createTexture Nothing = putStrLn "Fatal error reading image..." >> exitFailure

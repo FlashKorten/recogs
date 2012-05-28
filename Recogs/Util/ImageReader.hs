@@ -3,7 +3,6 @@ module Recogs.Util.ImageReader (
                    ) where
 import Codec.Picture
 import Codec.Picture.Types
-import Data.IORef
 
 getImageData :: FilePath -> IO (Maybe (Image PixelRGB8))
 getImageData filePath = do
@@ -15,9 +14,3 @@ getImageData filePath = do
         Right (ImageYA8 img)    -> return $ Just $ promoteImage img
         Right (ImageRGB8 img)   -> return $ Just $ promoteImage img
         Right (ImageRGBA8 img)  -> return $ Just $ convertImage $ dropAlphaLayer img
-
--- updateTexture :: IORef Game -> Int -> IO ()
--- updateTexture game i = do
---     g <- get game
---     c <- getConf g
---     return ()
