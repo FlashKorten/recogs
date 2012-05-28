@@ -12,15 +12,16 @@ import Recogs.Data (Config(..), ConfigParameter(..), ConfigMap)
 import Recogs.Util.RandomList (shuffle)
 
 configParameter :: ConfigParameter
-configParameter = ConfigParameter{ cpFile       = "recogs.cnf"
-                                 , cpImagedir   = Nothing
-                                 , cpRows       = Nothing
-                                 , cpCols       = Nothing
-                                 , cpWidth      = Nothing
-                                 , cpHeight     = Nothing
-                                 , cpFullscreen = Nothing
-                                 , cpShuffled   = Nothing
-                                 }
+configParameter = ConfigParameter
+                  { cpFile       = "recogs.cnf" &= explicit             &= name "file"       &= help "configuration file"          &= groupname "Set-Up" &= typFile
+                  , cpImagedir   = Nothing      &= explicit &= name "d" &= name "imagedir"   &= help "directory containing images" &= groupname "Images" &= typDir 
+                  , cpShuffled   = Nothing      &= explicit &= name "s" &= name "shuffled"   &= help "randomize order of images"                                   
+                  , cpRows       = Nothing      &= explicit &= name "r" &= name "rows"       &= help "#segments per col"           &= groupname "Level"            
+                  , cpCols       = Nothing      &= explicit &= name "c" &= name "cols"       &= help "#segments per row"                                           
+                  , cpWidth      = Nothing      &= explicit &= name "w" &= name "width"      &= help "width of program window"     &= groupname "Display"          
+                  , cpHeight     = Nothing      &= explicit &= name "h" &= name "height"     &= help "height of program window"                                    
+                  , cpFullscreen = Nothing      &= explicit &= name "f" &= name "fullscreen" &= help "fullscreen overrides width/height"                           
+                  } &= program "recogs"
 
 ident :: Parser String
 ident = do c <- letter <|> char '_'
@@ -102,7 +103,7 @@ getConfig = do
         f' = fromMaybe False $ getBool "fullscreen" (cpFullscreen c) confFromFile
         d' = getImageDir c confFromFile
     imgDir <- getImages d' s'
-    let imageFiles = "recogs.png" : (filter imageFile imgDir)
+    let imageFiles = "recogs.png" : filter imageFile imgDir
     return Config { configImages = imageFiles
                   , configRows   = r'
                   , configCols   = c'

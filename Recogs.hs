@@ -223,8 +223,6 @@ reshape game _ = do
         (w, h)  = calculateSize tWidth tHeight sWidth sHeight
         s       = Size (fromIntegral w) (fromIntegral h)
         size = fixSize s
-    -- print $ "Screenwidth: " ++ show sWidth ++ ", Screenheight: " ++ show sHeight
-    -- print $ "Imagewidth: " ++ show w ++ ", Imageheight: " ++ show h
     viewport $= (positionForSize sWidth sHeight size, size)
 
 setupProjection :: IO ()
@@ -239,16 +237,18 @@ getSizeFromMaybeImage :: Maybe (Image PixelRGB8) -> Int -> Int -> (Int, Int)
 getSizeFromMaybeImage Nothing w h              = (w, h)
 getSizeFromMaybeImage (Just (Image w h _)) _ _ = (w, h)
 
-adjustWindowSize :: Config -> IO Config
-adjustWindowSize c | configFS c = do
+createAdjustedWindow :: String -> Config -> IO Config
+createAdjustedWindow name c | configFS c = do
+                                _ <- createWindow name
                                 fullScreen
                                 screen <- get screenSize
                                 let (w, h) = getDataFromSize screen
                                 return c{ configWidth  = w
                                         , configHeight = h
                                         }
-                   | otherwise  = do
+                            | otherwise  = do
                                 initialWindowSize $= Size (fromIntegral $ configWidth c) (fromIntegral $ configHeight c)
+                                _ <- createWindow name
                                 return c
 
 main :: IO ()
@@ -257,8 +257,7 @@ main = do
     conf <- getConfig
     coords <- shuffle $ coordinates (configRows conf) (configCols conf)
     initialDisplayMode $= [RGBMode, WithDepthBuffer, DoubleBuffered]
-    config <- adjustWindowSize conf
-    _ <- createWindow progName
+    config <- createAdjustedWindow progName conf
     setupProjection
     depthFunc $= Just Less
     textureData <- getTextureByIndex conf 0

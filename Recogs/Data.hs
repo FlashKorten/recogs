@@ -31,12 +31,12 @@ type ConfigMap = Map.Map String String
 data ConfigParameter = ConfigParameter
                        { cpFile       :: String
                        , cpImagedir   :: Maybe String
+                       , cpShuffled   :: Maybe Bool
                        , cpRows       :: Maybe Int
                        , cpCols       :: Maybe Int
                        , cpWidth      :: Maybe Int
                        , cpHeight     :: Maybe Int
                        , cpFullscreen :: Maybe Bool
-                       , cpShuffled   :: Maybe Bool
                        } deriving (Show, Data, Typeable)
 
 data Config = Config
