@@ -102,7 +102,7 @@ getConfig = do
         f' = fromMaybe False $ getBool "fullscreen" (cpFullscreen c) confFromFile
         d' = getImageDir c confFromFile
     imgDir <- getImages d' s'
-    let imageFiles = filter imageFile imgDir
+    let imageFiles = "recogs.png" : (filter imageFile imgDir)
     return Config { configImages = imageFiles
                   , configRows   = r'
                   , configCols   = c'

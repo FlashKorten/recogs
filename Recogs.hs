@@ -41,7 +41,7 @@ coordinates rows cols = [(r, c)| r <- [0..(rows - 1)], c <- [0..(cols - 1)]]
 initGame :: Config -> [Coord] -> TextureData -> Int -> Game
 initGame c l t n = Game { getConf    = c
                         , getCoords  = l
-                        , getStep    = length l
+                        , getStep    = 0
                         , getTexture = t
                         , getFileNr  = n
                         }
