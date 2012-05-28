@@ -1,3 +1,5 @@
+module Main where
+
 import Graphics.Rendering.OpenGL
 import Data.IORef
 import Graphics.UI.GLUT  as GLUT
@@ -8,20 +10,7 @@ import System.Exit ( exitSuccess, exitFailure )
 import Config
 import ImageReader (getImageData)
 import Control.Monad (unless)
-
-type Coord = (Int, Int)
-
-data TextureData = TextureData { getTextureObject :: TextureObject
-                       , getTextureWidth  :: Int
-                       , getTextureHeight :: Int
-                       } deriving Show
-
-data Game = Game { getCoords  :: [Coord]
-                 , getStep    :: Int
-                 , getConf    :: Config
-                 , getTexture :: TextureData
-                 , getFileNr  :: Int
-                 } deriving Show
+import Recogs.Data
 
 _WIDTH, _HEIGHT :: GLfloat
 _WIDTH = 1
@@ -34,9 +23,8 @@ _BACKGROUND_DEPTH = 0.8
 _BLACK :: Color4 GLclampf
 _BLACK = Color4 0 0 0 1
 
-_GREY, _RED, _WHITE :: Color4 GLfloat
+_GREY, _WHITE :: Color4 GLfloat
 _GREY  = Color4 0.3 0.3 0.3 1
-_RED   = Color4 1 0 0 1
 _WHITE = Color4 1 1 1 1
 
 maxSteps :: Config -> Int
@@ -220,6 +208,9 @@ getNewSize game = do
         (w, h)  = calculateSize tWidth tHeight sWidth sHeight
     return $ Size (fromIntegral w) (fromIntegral h)
 
+getDataFromSize :: Size -> (Int, Int)
+getDataFromSize (Size w h) = (fromIntegral w, fromIntegral h)
+
 reshape :: IORef Game -> a -> IO ()
 reshape game _ = do
     g <- get game
@@ -254,7 +245,6 @@ main = do
         imageFile = head images
     image <- getImageData imageFile
     tex <- createTexture image
-    fullScreen
     let w'     = configWidth conf
         h'     = configHeight conf
         (w, h) = getSizeFromMaybeImage image w' h'
