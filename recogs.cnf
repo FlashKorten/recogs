@@ -1,6 +1,7 @@
 # Config file for recogs
 
 rows = 3
-cols = 5
+cols = 4
 imagedir = "/home/sebastian/Pictures"
 shuffled = True
+fullscreen = False

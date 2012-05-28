@@ -96,7 +96,7 @@ showBlackBuffer = do
 getTextureByIndex :: Config -> Int -> IO TextureData
 getTextureByIndex c i = do
         showBlackBuffer
-        let imageName = (configImages c !! i)
+        let imageName = configImages c !! i
         image <- getImageData imageName
         case image of
           Nothing  -> putStrLn ("Fatal error reading image..." ++ imageName) >> exitFailure
@@ -247,8 +247,9 @@ adjustWindowSize c | configFS c = do
                                 return c{ configWidth  = w
                                         , configHeight = h
                                         }
-                   | otherwise  = return c
-
+                   | otherwise  = do
+                                initialWindowSize $= Size (fromIntegral $ configWidth c) (fromIntegral $ configHeight c)
+                                return c
 
 main :: IO ()
 main = do
@@ -256,11 +257,11 @@ main = do
     conf <- getConfig
     coords <- shuffle $ coordinates (configRows conf) (configCols conf)
     initialDisplayMode $= [RGBMode, WithDepthBuffer, DoubleBuffered]
+    config <- adjustWindowSize conf
     _ <- createWindow progName
     setupProjection
     depthFunc $= Just Less
     textureData <- getTextureByIndex conf 0
-    config <- adjustWindowSize conf
     game <- newIORef $ initGame config coords textureData 0
     displayCallback $= display game
     reshapeCallback $= Just (reshape game)
