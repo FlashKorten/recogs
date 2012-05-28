@@ -3,13 +3,13 @@ module Main where
 import Graphics.Rendering.OpenGL
 import Data.IORef
 import Graphics.UI.GLUT  as GLUT
-import RandomList
 import Codec.Picture.Types
 import Data.Vector.Storable (unsafeWith)
 import System.Exit ( exitSuccess, exitFailure )
-import Config
-import ImageReader (getImageData)
 import Control.Monad (unless)
+import Recogs.Util.Config
+import Recogs.Util.ImageReader (getImageData)
+import Recogs.Util.RandomList
 import Recogs.Data
 
 _WIDTH, _HEIGHT :: GLfloat

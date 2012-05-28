@@ -1,5 +1,5 @@
 -- apfelmus 2009. This code is hereby released into public domain.
-module RandomList(
+module Recogs.Util.RandomList(
          shuffle
         ) where
 

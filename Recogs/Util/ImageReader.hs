@@ -1,4 +1,4 @@
-module ImageReader (
+module Recogs.Util.ImageReader (
                      getImageData
                    ) where
 import Codec.Picture

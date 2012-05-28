@@ -1,4 +1,4 @@
-module Config( getConfig ) where
+module Recogs.Util.Config( getConfig ) where
 import Data.Char
 import Data.List
 import qualified Data.Map as Map
@@ -9,7 +9,7 @@ import System.Console.CmdArgs
 import System.Directory
 import System.FilePath
 import Recogs.Data (Config(..), ConfigParameter(..), ConfigMap)
-import RandomList (shuffle)
+import Recogs.Util.RandomList (shuffle)
 
 configParameter :: ConfigParameter
 configParameter = ConfigParameter{ cpFile       = "recogs.cnf"
