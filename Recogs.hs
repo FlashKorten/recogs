@@ -184,8 +184,17 @@ keyboard game (Char 'B') Down _ _ = changeImage game (flip (-) 1)
 keyboard _  (Char '\27') Down _ _ = exitSuccess
 keyboard _ _ _ _ _                = return ()
 
-positionForSize :: Size -> Position
-positionForSize (Size w h) = Position (-fromIntegral w`div`2) (-fromIntegral h`div`2)
+getOffset :: Int -> Int -> Int
+getOffset outer inner
+    | outer > inner = fromIntegral (outer - inner) `div` 2
+    | otherwise     = 0
+
+positionForSize :: Int -> Int -> Size -> Position
+positionForSize sWidth sHeight (Size iWidth iHeight)
+    = Position (widthOffset  + (-fromIntegral iWidth`div`2))
+               (heightOffset + (-fromIntegral iHeight`div`2))
+         where widthOffset  = fromIntegral $ getOffset sWidth  $ fromIntegral iWidth `div` 2
+               heightOffset = fromIntegral $ getOffset sHeight $ fromIntegral iHeight `div` 2
 
 fixSize :: Size -> Size
 fixSize (Size w h) = Size (2*w) (2*h)
@@ -199,28 +208,24 @@ calculateSize texWidth texHeight screenWidth screenHeight
               f :: Int -> Int -> Double
               f x y        = fromIntegral x / fromIntegral y
 
-getNewSize :: Game -> IO Size
-getNewSize game = do
-    let config  = getConf game
-        tex     = getTexture game
-        tWidth  = getTextureWidth tex
-        tHeight = getTextureHeight tex
-        sWidth  = configWidth config
-        sHeight = configHeight config
-        (w, h)  = calculateSize tWidth tHeight sWidth sHeight
-    return $ Size (fromIntegral w) (fromIntegral h)
-
 getDataFromSize :: Size -> (Int, Int)
 getDataFromSize (Size w h) = (fromIntegral w, fromIntegral h)
 
 reshape :: IORef Game -> a -> IO ()
 reshape game _ = do
     g <- get game
-    s <- getNewSize g
-    -- screen <- get screenSize
-    -- let size = fixSize screen
-    let size = fixSize s
-    viewport $= (positionForSize size, size)
+    let config  = getConf g
+        tex     = getTexture g
+        tWidth  = getTextureWidth tex
+        tHeight = getTextureHeight tex
+        sWidth  = configWidth config
+        sHeight = configHeight config
+        (w, h)  = calculateSize tWidth tHeight sWidth sHeight
+        s       = Size (fromIntegral w) (fromIntegral h)
+        size = fixSize s
+    -- print $ "Screenwidth: " ++ show sWidth ++ ", Screenheight: " ++ show sHeight
+    -- print $ "Imagewidth: " ++ show w ++ ", Imageheight: " ++ show h
+    viewport $= (positionForSize sWidth sHeight size, size)
 
 setupProjection :: IO ()
 setupProjection = do
@@ -234,6 +239,17 @@ getSizeFromMaybeImage :: Maybe (Image PixelRGB8) -> Int -> Int -> (Int, Int)
 getSizeFromMaybeImage Nothing w h              = (w, h)
 getSizeFromMaybeImage (Just (Image w h _)) _ _ = (w, h)
 
+adjustWindowSize :: Config -> IO Config
+adjustWindowSize c | configFS c = do
+                                fullScreen
+                                screen <- get screenSize
+                                let (w, h) = getDataFromSize screen
+                                return c{ configWidth  = w
+                                        , configHeight = h
+                                        }
+                   | otherwise  = return c
+
+
 main :: IO ()
 main = do
     (progName,_) <- getArgsAndInitialize
@@ -244,7 +260,8 @@ main = do
     setupProjection
     depthFunc $= Just Less
     textureData <- getTextureByIndex conf 0
-    game <- newIORef $ initGame conf coords textureData 0
+    config <- adjustWindowSize conf
+    game <- newIORef $ initGame config coords textureData 0
     displayCallback $= display game
     reshapeCallback $= Just (reshape game)
     keyboardMouseCallback $= Just (keyboard game)
