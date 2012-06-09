@@ -106,7 +106,7 @@ getTextureByIndex c i = do
     case image of
       Left err  -> putStrLn err >> exitFailure
       Right img -> do
-        let (w, h) = getSizeFromMaybeImage image (configWidth c) (configHeight c)
+        let Image w h _ = img
         tex <- createTexture img
         return $ TextureData tex w h
 
@@ -169,20 +169,23 @@ rangeCheck lowerBound upperBound n
     | otherwise      = n
 
 doNextStep :: IORef Game -> (Int -> Int) -> IO ()
-doNextStep game changeStep = do
+doNextStep game f = do
     g <- get game
-    let nextStep = rangeCheck 0 (maxSteps $ getConf g) $ changeStep $ getStep g
-    game $= g{getStep = nextStep}
+    let lastStep   = getStep g
+        upperBound = maxSteps $ getConf g
+        nextStep   = rangeCheck 0 upperBound $ f lastStep
+    unless (nextStep == lastStep) $
+        game $= g{ getStep = nextStep }
     display game
 
 keyboard :: IORef Game -> Key -> KeyState -> a -> b -> IO ()
-keyboard game (Char 'n') Down _ _ = doNextStep game (flip (-) 1)
-keyboard game (Char 'b') Down _ _ = doNextStep game (+1)
-keyboard game (Char 'c') Down _ _ = doNextStep game (*0)
-keyboard game (Char 'd') Down _ _ = nextRound game
-keyboard game (Char 's') Down _ _ = reshuffle game
+keyboard game (Char 'n') Down _ _ = doNextStep game (subtract 1) -- show one more part of the image
+keyboard game (Char 'b') Down _ _ = doNextStep game (+1)         -- show one less part of the image
+keyboard game (Char 'c') Down _ _ = doNextStep game (*0)         -- show the whole image
+keyboard game (Char 'd') Down _ _ = nextRound game               -- load the next image and conceal it
+keyboard game (Char 's') Down _ _ = reshuffle game               -- show the same amount but different parts
 keyboard game (Char 'N') Down _ _ = changeImage game (+1)
-keyboard game (Char 'B') Down _ _ = changeImage game (flip (-) 1)
+keyboard game (Char 'B') Down _ _ = changeImage game (subtract 1)
 keyboard _  (Char '\27') Down _ _ = exitSuccess
 keyboard _ _ _ _ _                = return ()
 
@@ -192,11 +195,11 @@ getOffset outer inner
     | otherwise     = 0
 
 positionForSize :: Int -> Int -> Size -> Position
-positionForSize sWidth sHeight (Size iWidth iHeight)
-    = Position (widthOffset  + (-fromIntegral iWidth`div`2))
-               (heightOffset + (-fromIntegral iHeight`div`2))
-         where widthOffset  = fromIntegral $ getOffset sWidth  $ fromIntegral iWidth `div` 2
-               heightOffset = fromIntegral $ getOffset sHeight $ fromIntegral iHeight `div` 2
+positionForSize screenW screenH (Size imageW imageH)
+    = Position (wOffset + (-fromIntegral imageW `div`2))
+               (hOffset + (-fromIntegral imageH `div`2))
+         where wOffset  = fromIntegral $ getOffset screenW $ fromIntegral imageW `div` 2
+               hOffset  = fromIntegral $ getOffset screenH $ fromIntegral imageH `div` 2
 
 fixSize :: Size -> Size
 fixSize (Size w h) = Size (2*w) (2*h)
@@ -218,13 +221,13 @@ reshape game _ = do
     g <- get game
     let config    = getConf g
         tex       = getTexture g
-        texWidth  = getTextureWidth tex
-        texHeight = getTextureHeight tex
-        scrWidth  = configWidth config
-        scrHeight = configHeight config
-        (w, h)    = calculateSize texWidth texHeight scrWidth scrHeight
-        size      = fixSize $ Size (fromIntegral w) (fromIntegral h)
-    viewport $= (positionForSize scrWidth scrHeight size, size)
+        textureW  = getTextureWidth tex
+        textureH  = getTextureHeight tex
+        screenW   = configWidth config
+        screenH   = configHeight config
+        (w, h)    = calculateSize textureW textureH screenW screenH
+        imageSize = fixSize $ Size (fromIntegral w) (fromIntegral h)
+    viewport $= (positionForSize screenW screenH imageSize, imageSize)
 
 setupProjection :: IO ()
 setupProjection = do
@@ -233,10 +236,6 @@ setupProjection = do
   ortho 0 (realToFrac _WIDTH) 0 (realToFrac _HEIGHT) 0 1
   matrixMode $= Modelview 1
   loadIdentity
-
-getSizeFromMaybeImage :: Either String (Image PixelRGB8) -> Int -> Int -> (Int, Int)
-getSizeFromMaybeImage (Left _) w h              = (w, h)
-getSizeFromMaybeImage (Right (Image w h _)) _ _ = (w, h)
 
 createAdjustedWindow :: String -> Config -> IO Config
 createAdjustedWindow name c

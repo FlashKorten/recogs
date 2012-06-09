@@ -25,4 +25,3 @@ getImageData filePath = do
                          ImageYA8 img    -> promoteImage img
                          ImageRGB8 img   -> promoteImage img
                          ImageRGBA8  img -> convertImage $ dropAlphaLayer img
-

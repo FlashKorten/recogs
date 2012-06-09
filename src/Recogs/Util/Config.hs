@@ -3,8 +3,8 @@ module Recogs.Util.Config( getConfig ) where
 import Data.Char ( isSpace, toLower )
 import Data.List ( sort )
 import qualified Data.Map as Map ( lookup, fromList )
-import Control.Monad ( liftM, void )
-import Data.Maybe ( fromMaybe, catMaybes)
+import Control.Monad ( liftM, void, msum )
+import Data.Maybe ( catMaybes, fromJust)
 import Text.ParserCombinators.Parsec
     ( Parser
     , SourceName
@@ -95,16 +95,14 @@ readConfig :: SourceName -> IO (Maybe ConfigMap)
 readConfig fileName = do
     conf <- liftM (liftM Map.fromList) (parseFromFile fileContent fileName)
     case conf of
-      Left err -> (putStrLn $ show err) >> return Nothing
+      Left err -> print err >> return Nothing
       Right cm -> return $ Just cm
 
 getParameter :: (Read a) => String -> Maybe a -> Maybe ConfigMap -> a -> a
 getParameter fieldName field confFile fallback =
-    case field of
-      Just n -> n
-      Nothing -> case confFile of
-                   Just file -> fromMaybe fallback $ fmap read (Map.lookup fieldName file)
-                   Nothing   -> fallback
+    fromJust $ msum [field,
+                   fmap read (confFile >>= Map.lookup fieldName),
+                   Just fallback]
 
 getImages :: FilePath -> Bool -> IO [FilePath]
 getImages filePath random
