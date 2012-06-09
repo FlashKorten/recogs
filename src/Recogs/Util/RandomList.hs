@@ -4,11 +4,16 @@ module Recogs.Util.RandomList(
         ) where
 
 import Control.Monad.Random
-import Control.Monad
+    ( StdGen
+    , MonadRandom(getRandomR)
+    , Rand
+    , evalRandIO
+    )
+import Control.Monad ( liftM )
 
 type R a = Rand StdGen a
 
-    -- List returning elements in random order
+-- List returning elements in random order
 type RandomList a = R [a]
 
 empty :: RandomList a
@@ -17,7 +22,7 @@ empty = return []
 singleton :: a -> RandomList a
 singleton x = return [x]
 
-    -- Fair merge of random lists
+-- Fair merge of random lists
 merge :: RandomList a -> RandomList a -> RandomList a
 merge rxs rys = do
         xs <- rxs
@@ -27,11 +32,11 @@ merge rxs rys = do
       merge' (0 , [])   (_ , ys)   = return ys
       merge' (_ , xs)   (0 , [])   = return xs
       merge' (nx, x:xs) (ny, y:ys) = do
-        k <- getRandomR (1,nx+ny)   -- selection weighted by size
+        k <- getRandomR (1, nx + ny)   -- selection weighted by size
         if k <= nx
             then (x:) `liftM` ((nx-1, xs) `merge'` (ny, y:ys))
             else (y:) `liftM` ((nx, x:xs) `merge'` (ny-1, ys))
-      merge' (_ , a) _             = return a -- This will not happen... only to suppress warnings.
+      merge' (_ , a) _             = error "Impossible happened"
 
     -- Generate a random permutation in O(n log n)
 permute :: [a] -> RandomList a

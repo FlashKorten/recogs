@@ -8,9 +8,9 @@ module Recogs.Data ( TextureData(..)
                    ) where
 
 import qualified Data.Map as Map
-import Graphics.Rendering.OpenGL
-import System.Console.CmdArgs
-                                
+import Graphics.Rendering.OpenGL (TextureObject)
+import System.Console.CmdArgs (Data, Typeable)
+
 data TextureData = TextureData
                    { getTextureObject :: TextureObject
                    , getTextureWidth  :: Int

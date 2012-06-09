@@ -1,16 +1,21 @@
 module Main where
 
 import Graphics.Rendering.OpenGL
-import Data.IORef
-import Graphics.UI.GLUT  as GLUT
-import Codec.Picture.Types
-import Data.Vector.Storable (unsafeWith)
+import Data.IORef ( IORef, newIORef )
+import Graphics.UI.GLUT as GLUT
+import Codec.Picture.Types ( PixelRGB8, Image(Image) )
+import Data.Vector.Storable ( unsafeWith )
 import System.Exit ( exitSuccess, exitFailure )
-import Control.Monad (unless)
-import Recogs.Util.Config
-import Recogs.Util.ImageReader (getImageData)
-import Recogs.Util.RandomList
+import Control.Monad ( unless )
+import Recogs.Util.Config ( getConfig )
+import Recogs.Util.ImageReader ( getImageData )
+import Recogs.Util.RandomList ( shuffle )
 import Recogs.Data
+    ( Config(configCols, configFS, configHeight, configImages, configRows, configWidth)
+    , Coord
+    , Game(..)
+    , TextureData(..)
+    )
 
 _WIDTH, _HEIGHT :: GLfloat
 _WIDTH = 1
@@ -82,10 +87,10 @@ nextRound game = do
 
 displayReshaped :: IORef Game -> TextureData -> IO ()
 displayReshaped game textureData = do
-        let w = fromIntegral $ getTextureWidth textureData
-            h = fromIntegral $ getTextureHeight textureData
-        reshape game (Size w h)
-        display game
+    let w = fromIntegral $ getTextureWidth textureData
+        h = fromIntegral $ getTextureHeight textureData
+    reshape game (Size w h)
+    display game
 
 showBlackBuffer :: IO ()
 showBlackBuffer = do
@@ -95,15 +100,15 @@ showBlackBuffer = do
 
 getTextureByIndex :: Config -> Int -> IO TextureData
 getTextureByIndex c i = do
-        showBlackBuffer
-        let imageName = configImages c !! i
-        image <- getImageData imageName
-        case image of
-          Nothing  -> putStrLn ("Fatal error reading image..." ++ imageName) >> exitFailure
-          Just img -> do
-            let (w, h) = getSizeFromMaybeImage image (configWidth c) (configHeight c)
-            tex <- createTexture img
-            return $ TextureData tex w h
+    showBlackBuffer
+    let imageName = configImages c !! i
+    image <- getImageData imageName
+    case image of
+      Left err  -> putStrLn err >> exitFailure
+      Right img -> do
+        let (w, h) = getSizeFromMaybeImage image (configWidth c) (configHeight c)
+        tex <- createTexture img
+        return $ TextureData tex w h
 
 reshuffle :: IORef Game -> IO ()
 reshuffle game = do
@@ -132,11 +137,8 @@ display game = do
     textureSegment 0 0 _WIDTH _HEIGHT _BACKGROUND_DEPTH
     -- Foreground
     textureBinding Texture2D $= Nothing
-    drawSegments width height $ take step coords
+    mapM_ (drawSegment width height) $ take step coords
     swapBuffers
-
-drawSegments :: GLfloat -> GLfloat -> [Coord] -> IO ()
-drawSegments width height = foldr ((>>) . drawSegment width height) (return ())
 
 drawSegment ::  GLfloat -> GLfloat -> Coord -> IO ()
 drawSegment width height (r, c) = do
@@ -214,16 +216,15 @@ getDataFromSize (Size w h) = (fromIntegral w, fromIntegral h)
 reshape :: IORef Game -> a -> IO ()
 reshape game _ = do
     g <- get game
-    let config  = getConf g
-        tex     = getTexture g
-        tWidth  = getTextureWidth tex
-        tHeight = getTextureHeight tex
-        sWidth  = configWidth config
-        sHeight = configHeight config
-        (w, h)  = calculateSize tWidth tHeight sWidth sHeight
-        s       = Size (fromIntegral w) (fromIntegral h)
-        size = fixSize s
-    viewport $= (positionForSize sWidth sHeight size, size)
+    let config    = getConf g
+        tex       = getTexture g
+        texWidth  = getTextureWidth tex
+        texHeight = getTextureHeight tex
+        scrWidth  = configWidth config
+        scrHeight = configHeight config
+        (w, h)    = calculateSize texWidth texHeight scrWidth scrHeight
+        size      = fixSize $ Size (fromIntegral w) (fromIntegral h)
+    viewport $= (positionForSize scrWidth scrHeight size, size)
 
 setupProjection :: IO ()
 setupProjection = do
@@ -233,23 +234,24 @@ setupProjection = do
   matrixMode $= Modelview 1
   loadIdentity
 
-getSizeFromMaybeImage :: Maybe (Image PixelRGB8) -> Int -> Int -> (Int, Int)
-getSizeFromMaybeImage Nothing w h              = (w, h)
-getSizeFromMaybeImage (Just (Image w h _)) _ _ = (w, h)
+getSizeFromMaybeImage :: Either String (Image PixelRGB8) -> Int -> Int -> (Int, Int)
+getSizeFromMaybeImage (Left _) w h              = (w, h)
+getSizeFromMaybeImage (Right (Image w h _)) _ _ = (w, h)
 
 createAdjustedWindow :: String -> Config -> IO Config
-createAdjustedWindow name c | configFS c = do
-                                _ <- createWindow name
-                                fullScreen
-                                screen <- get screenSize
-                                let (w, h) = getDataFromSize screen
-                                return c{ configWidth  = w
-                                        , configHeight = h
-                                        }
-                            | otherwise  = do
-                                initialWindowSize $= Size (fromIntegral $ configWidth c) (fromIntegral $ configHeight c)
-                                _ <- createWindow name
-                                return c
+createAdjustedWindow name c
+    | configFS c = do
+                   _ <- createWindow name
+                   fullScreen
+                   screen <- get screenSize
+                   let (w, h) = getDataFromSize screen
+                   return c{ configWidth  = w
+                           , configHeight = h
+                           }
+    | otherwise  = do
+                   initialWindowSize $= Size (fromIntegral $ configWidth c) (fromIntegral $ configHeight c)
+                   _ <- createWindow name
+                   return c
 
 main :: IO ()
 main = do
@@ -262,8 +264,8 @@ main = do
     depthFunc $= Just Less
     textureData <- getTextureByIndex conf 0
     game <- newIORef $ initGame config coords textureData 0
-    displayCallback $= display game
-    reshapeCallback $= Just (reshape game)
+    displayCallback       $= display game
+    reshapeCallback       $= Just (reshape game)
     keyboardMouseCallback $= Just (keyboard game)
     mainLoop
 
@@ -277,11 +279,11 @@ createTexture :: Image PixelRGB8 -> IO TextureObject
 createTexture image = do
     clearColor $= Color4 0 0 0 0
     shadeModel $= Flat
-    depthFunc $= Just Less
+    depthFunc  $= Just Less
     rowAlignment Unpack $= 1
 
     [imageTexture] <- genObjectNames 1
-    textureBinding Texture2D $= Just imageTexture
+    textureBinding  Texture2D   $= Just imageTexture
     textureFilter   Texture2D   $= ((Linear', Nothing), Linear')
     textureWrapMode Texture2D S $= (Repeated, Clamp)
     textureWrapMode Texture2D T $= (Repeated, Clamp)
