@@ -38,7 +38,7 @@ merge rxs rys = do
             else (y:) `liftM` ((nx, x:xs) `merge'` (ny-1, ys))
       merge' (_ , _) _             = error "Impossible happened"
 
-    -- Generate a random permutation in O(n log n)
+-- Generate a random permutation in O(n log n)
 permute :: [a] -> RandomList a
 permute = permuteList
     where

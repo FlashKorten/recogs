@@ -100,9 +100,10 @@ readConfig fileName = do
 
 getParameter :: (Read a) => String -> Maybe a -> Maybe ConfigMap -> a -> a
 getParameter fieldName field confFile fallback =
-    fromJust $ msum [field,
-                   fmap read (confFile >>= Map.lookup fieldName),
-                   Just fallback]
+    fromJust $ msum [ field
+                    , fmap read (confFile >>= Map.lookup fieldName)
+                    , Just fallback
+                    ]
 
 getImages :: FilePath -> Bool -> IO [FilePath]
 getImages filePath random

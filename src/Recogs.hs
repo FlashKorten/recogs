@@ -35,21 +35,21 @@ _WHITE = Color4 1 1 1 1
 maxSteps :: Config -> Int
 maxSteps c = configRows c * configCols c
 
-fieldWidth :: Config -> GLfloat
+fieldWidth, fieldHeight :: Config -> GLfloat
 fieldWidth  c = _WIDTH  / fromIntegral (configCols c)
-fieldHeight :: Config -> GLfloat
 fieldHeight c = _HEIGHT / fromIntegral (configRows c)
 
 coordinates :: Int -> Int -> [Coord]
 coordinates rows cols = [(r, c)| r <- [0..(rows - 1)], c <- [0..(cols - 1)]]
 
 initGame :: Config -> [Coord] -> TextureData -> Int -> Game
-initGame c l t n = Game { getConf    = c
-                        , getCoords  = l
-                        , getStep    = 0
-                        , getTexture = t
-                        , getFileNr  = n
-                        }
+initGame config coords textureData fileNumber
+    = Game { getConf    = config
+           , getCoords  = coords
+           , getStep    = 0
+           , getTexture = textureData
+           , getFileNr  = fileNumber
+           }
 
 changeImage :: IORef Game -> (Int -> Int) -> IO ()
 changeImage game f = do
@@ -74,13 +74,13 @@ nextRound game = do
     if fileNr == length imgFiles - 1
       then exitSuccess
       else do
-        let rows      = configRows config
-            cols      = configCols config
-        c <- shuffle $ coordinates rows cols
+        let rows = configRows config
+            cols = configCols config
+        coords <- shuffle $ coordinates rows cols
         textureData <- getTextureByIndex config $ fileNr + 1
-        game $= g{ getCoords  = c
+        game $= g{ getCoords  = coords
                  , getFileNr  = fileNr + 1
-                 , getStep    = length c
+                 , getStep    = length coords
                  , getTexture = textureData
                  }
         displayReshaped game textureData
