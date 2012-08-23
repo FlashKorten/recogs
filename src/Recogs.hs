@@ -179,14 +179,16 @@ doNextStep game f = do
     display game
 
 keyboard :: IORef Game -> Key -> KeyState -> a -> b -> IO ()
-keyboard game (Char 'n') Down _ _ = doNextStep game (subtract 1) -- show one more part of the image
-keyboard game (Char 'b') Down _ _ = doNextStep game (+1)         -- show one less part of the image
-keyboard game (Char 'c') Down _ _ = doNextStep game (*0)         -- show the whole image
-keyboard game (Char 'd') Down _ _ = nextRound game               -- load the next image and conceal it
-keyboard game (Char 's') Down _ _ = reshuffle game               -- show the same amount but different parts
-keyboard game (Char 'N') Down _ _ = changeImage game (+1)
-keyboard game (Char 'B') Down _ _ = changeImage game (subtract 1)
-keyboard _  (Char '\27') Down _ _ = exitSuccess
+keyboard game (Char key) Down _ _ = case key of
+    '+'   -> doNextStep game (subtract 1) -- show one more part of the image
+    '-'   -> doNextStep game (+1)         -- show one less part of the image
+    '*'   -> doNextStep game (*0)         -- show the whole image
+    'n'   -> nextRound game               -- load the next image and conceal it
+    'm'   -> reshuffle game               -- show the same amount but different parts
+    'b'   -> changeImage game (+1)
+    'B'   -> changeImage game (subtract 1)
+    '\27' -> exitSuccess
+    _     -> return ()
 keyboard _ _ _ _ _                = return ()
 
 getOffset :: Int -> Int -> Int
