@@ -37,7 +37,6 @@ Executable recogs
     filepath,
     MonadRandom,
     parsec,
-    transformers,
     cmdargs,
     containers,
     SDL,
