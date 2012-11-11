@@ -1,5 +1,7 @@
 # Config file for recogs
 
+width = 800
+height = 600
 rows = 3
 cols = 4
 imagedir = "/home/sebastian/Pictures"

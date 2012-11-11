@@ -1,30 +1,28 @@
 {-# LANGUAGE DeriveDataTypeable #-}
-module Recogs.Data ( TextureData(..)
-                   , Coord
+
+module Recogs.Data ( Coord
                    , Game(..)
                    , ConfigParameter(..)
                    , Config(..)
                    , ConfigMap
+                   , Dimension
                    ) where
 
-import qualified Data.Map as Map
-import Graphics.Rendering.OpenGL (TextureObject)
-import System.Console.CmdArgs (Data, Typeable)
-
-data TextureData = TextureData
-                   { getTextureObject :: TextureObject
-                   , getTextureWidth  :: Int
-                   , getTextureHeight :: Int
-                   } deriving Show
+import qualified Data.Map as Map ( Map )
+import System.Console.CmdArgs ( Data, Typeable )
+import Graphics.UI.SDL ( Surface )
 
 data Game = Game
-            { getCoords  :: [Coord]
-            , getStep    :: Int
-            , getConf    :: Config
-            , getTexture :: TextureData
-            , getFileNr  :: Int
+            { getCoords         :: [Coord]
+            , getStep           :: Int
+            , getConf           :: Config
+            , getImage          :: Surface
+            , getBaseOffset     :: Dimension
+            , getBlockDimension :: Dimension
+            , getFileNr         :: Int
             } deriving Show
 
+type Dimension = (Int, Int)
 type Coord     = (Int, Int)
 type ConfigMap = Map.Map String String
 
@@ -47,4 +45,3 @@ data Config = Config
               ,configHeight :: Int
               ,configFS     :: Bool
               } deriving (Show)
-

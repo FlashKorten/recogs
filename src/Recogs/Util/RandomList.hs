@@ -1,7 +1,5 @@
 -- apfelmus 2009. This code is hereby released into public domain.
-module Recogs.Util.RandomList(
-         shuffle
-        ) where
+module Recogs.Util.RandomList( shuffle ) where
 
 import Control.Monad.Random
     ( StdGen

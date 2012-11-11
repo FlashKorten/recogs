@@ -1,6 +1,6 @@
 Name:                recogs
-Version:             0.1
-Synopsis:            Haskell/OpenGL based image-recognition-game for people suffering from dementia
+Version:             0.2
+Synopsis:            Haskell/SDL based image-recognition-game for people suffering from dementia
 Description: Recogs is a very simple image recognition game where parts of an image are revealed one at a time.
 Homepage:            https://github.com/FlashKorten/recogs
 License:             MIT
@@ -24,8 +24,6 @@ Extra-tmp-files:
   Recogs/Util/RandomList.o
   Recogs/Util/Config.hi
   Recogs/Util/Config.o
-  Recogs/Util/ImageReader.hi
-  Recogs/Util/ImageReader.o
 
 Executable recogs
   Main-is:
@@ -34,16 +32,17 @@ Executable recogs
     src
   Build-depends:
     base >= 4 && < 5,
-    JuicyPixels,
     directory,
     vector,
     filepath,
     MonadRandom,
-    OpenGL,
     parsec,
+    transformers,
     cmdargs,
     containers,
-    GLUT
+    SDL,
+    SDL-image,
+    SDL-gfx
 
   ghc-options: -O2 -Wall -funbox-strict-fields
   if impl(ghc >= 6.8)
