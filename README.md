@@ -10,7 +10,7 @@ Haskell/SDL based image-recognition-game for people suffering from dementia
 
 ## How to start
  - `recogs --help` shows command line parameters
- - the file recogs.cnf contains every configuration parameter
+ - the file recogs.cnf contains every configuration parameter (except `--file` to select a configuration file)
 
 ## How to play
  - `n` => start with the next image
