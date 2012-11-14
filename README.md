@@ -13,10 +13,9 @@ Haskell/SDL based image-recognition-game for people suffering from dementia
  - the file recogs.cnf contains every configuration parameter (except `--file` to select a configuration file)
 
 ## How to play
- - `n` => start with the next image
  - `Space` => show one more tip
  - `Backspace` => hide the last tip
- - `Enter` => reveal the whole image
+ - `Enter` => reveal the whole image or proceed to the next image (if image is revealed)
  - `m` => reshuffle the revealed positions
  - `Escape` = quit the game
 
@@ -27,4 +26,4 @@ Haskell/SDL based image-recognition-game for people suffering from dementia
   - find a nice way to show a 'help' screen in game
     explaining how to play (keybindings)
 
-Thanks to the nice and well written comments on reddit to improve this!
+hanks to the nice and well written comments on reddit to improve this!
