@@ -5,7 +5,7 @@ import Graphics.UI.SDL as SDL
     ( Surface
     , SurfaceFlag(Fullscreen)
     , Rect(Rect)
-    , SDLKey(SDLK_BACKSPACE, SDLK_ESCAPE, SDLK_RETURN, SDLK_SPACE, SDLK_m, SDLK_n)
+    , SDLKey(SDLK_BACKSPACE, SDLK_ESCAPE, SDLK_RETURN, SDLK_SPACE, SDLK_m)
     , Keysym(Keysym)
     , InitFlag(InitEverything)
     , Event(KeyUp)
@@ -44,6 +44,32 @@ import Recogs.Data ( Game(..)
                            , configWidth)
                    )
 
+main :: IO ()
+main = do
+    SDL.init [InitEverything]
+    conf <- getConfig
+    config <- createAdjustedWindow "Recogs" conf
+    coords <- shuffle $ coordinates (configRows config) (configCols config)
+    game <- initGame config coords
+    gameRef <- newIORef game
+    display gameRef
+    eventLoop gameRef
+
+eventLoop :: IORef Game -> IO ()
+eventLoop game = SDL.waitEventBlocking >>= handleEvent game
+
+handleEvent :: IORef Game -> Event -> IO ()
+handleEvent _    (SDL.KeyUp (Keysym SDLK_ESCAPE _ _))    = exit
+handleEvent game (SDL.KeyUp (Keysym k _ _))              = handleKey game k >> eventLoop game
+handleEvent game _                                       = eventLoop game
+
+handleKey :: IORef Game -> SDLKey -> IO ()
+handleKey game SDLK_SPACE     = doNextStep game (subtract 1)
+handleKey game SDLK_BACKSPACE = doNextStep game (+1)
+handleKey game SDLK_RETURN    = revealOrStartNext game
+handleKey game SDLK_m         = reshuffle game
+handleKey _ _                 = return ()
+
 getSurfaceDimension :: Surface -> Dimension
 getSurfaceDimension s = (surfaceGetWidth s, surfaceGetHeight s)
 
@@ -63,8 +89,11 @@ getOffsetRect a b
     | otherwise = Just $ Rect x y 0 0
                     where (x, y) = getOffset a b
 
-showImage :: Surface -> Surface -> IO Bool
-showImage surface screen = blitSurface surface Nothing screen $ getOffsetRect (getSurfaceDimension surface) (getSurfaceDimension screen)
+rangeCheck :: Ord a => a -> a -> a -> a
+rangeCheck lowerBound upperBound n
+    | n < lowerBound = lowerBound
+    | n > upperBound = upperBound
+    | otherwise      = n
 
 maxSteps :: Config -> Int
 maxSteps c = configRows c * configCols c
@@ -116,6 +145,16 @@ initGame config coords = do
                 , getFileNr         = 0
                 }
 
+doNextStep :: IORef Game -> (Int -> Int) -> IO ()
+doNextStep gameRef f = do
+    g <- readIORef gameRef
+    let lastStep   = getStep g
+        upperBound = maxSteps $ getConf g
+        nextStep   = rangeCheck 0 upperBound $ f lastStep
+    unless (nextStep == lastStep) $ do
+        writeIORef gameRef g{ getStep = nextStep }
+        display gameRef
+
 nextRound :: IORef Game -> IO ()
 nextRound gameRef = do
     g <- readIORef gameRef
@@ -135,12 +174,6 @@ nextRound gameRef = do
         updateImageData gameRef
         clearScreen
 
-clearScreen :: IO ()
-clearScreen = do
-    screen <- getVideoSurface
-    _ <- fillRect screen (Just (Rect 0 0 (surfaceGetWidth screen) (surfaceGetHeight screen))) (Pixel 0x000000)
-    SDL.flip screen
-
 reshuffle :: IORef Game -> IO ()
 reshuffle gameRef = do
     g <- readIORef gameRef
@@ -150,6 +183,19 @@ reshuffle gameRef = do
     c <- shuffle $ coordinates rows cols
     writeIORef gameRef g{getCoords = c}
     display gameRef
+
+revealOrStartNext :: IORef Game -> IO ()
+revealOrStartNext gameRef = do
+    g <- readIORef gameRef
+    if getStep g == 0
+      then nextRound gameRef
+      else doNextStep gameRef (*0)
+
+clearScreen :: IO ()
+clearScreen = do
+    screen <- getVideoSurface
+    _ <- fillRect screen (Just (Rect 0 0 (surfaceGetWidth screen) (surfaceGetHeight screen))) (Pixel 0x000000)
+    SDL.flip screen
 
 display :: IORef Game -> IO ()
 display gameRef = do
@@ -164,6 +210,9 @@ display gameRef = do
     mapM_ (drawSegment screen blockDimension offset) $ take step coords
     SDL.flip screen
 
+showImage :: Surface -> Surface -> IO Bool
+showImage surface screen = blitSurface surface Nothing screen $ getOffsetRect (getSurfaceDimension surface) (getSurfaceDimension screen)
+
 drawSegment :: Surface -> Dimension -> Dimension -> Coord -> IO ()
 drawSegment screen blockDimension (xo, yo) (r, c) = do
     let (width, height) = blockDimension
@@ -171,23 +220,6 @@ drawSegment screen blockDimension (xo, yo) (r, c) = do
         y = (r * height) + yo
     _ <- fillRect screen (Just (Rect x y width height)) (Pixel 0x000000)
     return ()
-
-rangeCheck :: Ord a => a -> a -> a -> a
-rangeCheck lowerBound upperBound n
-    | n < lowerBound = lowerBound
-    | n > upperBound = upperBound
-    | otherwise      = n
-
-doNextStep :: IORef Game -> (Int -> Int) -> IO ()
-doNextStep gameRef f = do
-    g <- readIORef gameRef
-    let lastStep   = getStep g
-        upperBound = maxSteps $ getConf g
-        nextStep   = rangeCheck 0 upperBound $ f lastStep
-    unless (nextStep == lastStep) $ do
-        writeIORef gameRef g{ getStep = nextStep }
-        display gameRef
-
 
 createAdjustedWindow :: String -> Config -> IO Config
 createAdjustedWindow title c
@@ -204,31 +236,8 @@ createAdjustedWindow title c
                    _ <- SDL.setCaption title title
                    return c
 
-handleKey :: IORef Game -> Event -> IO ()
-handleKey game (SDL.KeyUp (Keysym SDLK_SPACE _ _))     = doNextStep game (subtract 1) >> eventLoop game
-handleKey game (SDL.KeyUp (Keysym SDLK_BACKSPACE _ _)) = doNextStep game (+1) >> eventLoop game
-handleKey game (SDL.KeyUp (Keysym SDLK_RETURN _ _))    = doNextStep game (*0) >> eventLoop game
-handleKey game (SDL.KeyUp (Keysym SDLK_n _ _))         = nextRound game >> eventLoop game
-handleKey game (SDL.KeyUp (Keysym SDLK_m _ _))         = reshuffle game >> eventLoop game
-handleKey _    (SDL.KeyUp (Keysym SDLK_ESCAPE _ _))    = exit
-handleKey game _                                       = return () >> eventLoop game
-
-eventLoop :: IORef Game -> IO ()
-eventLoop game = SDL.waitEventBlocking >>= handleKey game
-
 exit :: IO ()
 exit = do
     SDL.quit
     print "done..."
-
-main :: IO ()
-main = do
-    SDL.init [InitEverything]
-    conf <- getConfig
-    config <- createAdjustedWindow "Recogs" conf
-    coords <- shuffle $ coordinates (configRows config) (configCols config)
-    game <- initGame config coords
-    gameRef <- newIORef game
-    display gameRef
-    eventLoop gameRef
 
