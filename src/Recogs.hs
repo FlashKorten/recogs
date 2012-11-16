@@ -126,12 +126,12 @@ initImageData c = do
 
 updateImageData :: IORef Game -> IO ()
 updateImageData gameRef = do
-    g <- readIORef gameRef
-    freeSurface $ getImage g
-    let c = getConf g
-    image  <- load $ configImages c !! getFileNr g
-    (scaledImage, blockDimension, offset) <- calculateImageData image c
-    writeIORef gameRef g{getImage = scaledImage, getBlockDimension = blockDimension, getBaseOffset = offset}
+    game <- readIORef gameRef
+    freeSurface $ getImage game
+    let config = getConf game
+    image  <- load $ configImages config !! getFileNr game
+    (scaledImage, blockDimension, offset) <- calculateImageData image config
+    writeIORef gameRef game {getImage = scaledImage, getBlockDimension = blockDimension, getBaseOffset = offset}
 
 initGame :: Config -> [Coord] -> IO Game
 initGame config coords = do
@@ -147,19 +147,19 @@ initGame config coords = do
 
 doNextStep :: IORef Game -> (Int -> Int) -> IO ()
 doNextStep gameRef f = do
-    g <- readIORef gameRef
-    let lastStep   = getStep g
-        upperBound = maxSteps $ getConf g
+    game <- readIORef gameRef
+    let lastStep   = getStep game
+        upperBound = maxSteps $ getConf game
         nextStep   = rangeCheck 0 upperBound $ f lastStep
     unless (nextStep == lastStep) $ do
-        writeIORef gameRef g{ getStep = nextStep }
+        writeIORef gameRef game {getStep = nextStep}
         display gameRef
 
 nextRound :: IORef Game -> IO ()
 nextRound gameRef = do
-    g <- readIORef gameRef
-    let fileNr    = getFileNr g
-        config    = getConf g
+    game <- readIORef gameRef
+    let fileNr    = getFileNr game
+        config    = getConf game
         imgFiles  = configImages config
     if fileNr == length imgFiles - 1
       then exitSuccess
@@ -167,27 +167,27 @@ nextRound gameRef = do
         let rows = configRows config
             cols = configCols config
         coords <- shuffle $ coordinates rows cols
-        writeIORef gameRef g{ getCoords  = coords
-                           , getFileNr  = fileNr + 1
-                           , getStep    = length coords
-                           }
+        writeIORef gameRef game { getCoords  = coords
+                                , getFileNr  = fileNr + 1
+                                , getStep    = length coords
+                                }
         updateImageData gameRef
         clearScreen
 
 reshuffle :: IORef Game -> IO ()
 reshuffle gameRef = do
-    g <- readIORef gameRef
-    let conf = getConf g
+    game <- readIORef gameRef
+    let conf = getConf game
         rows = configRows conf
         cols = configCols conf
     c <- shuffle $ coordinates rows cols
-    writeIORef gameRef g{getCoords = c}
+    writeIORef gameRef game {getCoords = c}
     display gameRef
 
 revealOrStartNext :: IORef Game -> IO ()
 revealOrStartNext gameRef = do
-    g <- readIORef gameRef
-    if getStep g == 0
+    game <- readIORef gameRef
+    if getStep game == 0
       then nextRound gameRef
       else doNextStep gameRef (*0)
 
@@ -199,13 +199,13 @@ clearScreen = do
 
 display :: IORef Game -> IO ()
 display gameRef = do
-    g <- readIORef gameRef
+    game <- readIORef gameRef
     screen <- getVideoSurface
-    let step           = getStep g
-        image          = getImage g
-        coords         = getCoords g
-        blockDimension = getBlockDimension g
-        offset         = getBaseOffset g
+    let step           = getStep game
+        image          = getImage game
+        coords         = getCoords game
+        blockDimension = getBlockDimension game
+        offset         = getBaseOffset game
     _ <- showImage image screen
     mapM_ (drawSegment screen blockDimension offset) $ take step coords
     SDL.flip screen
@@ -214,10 +214,10 @@ showImage :: Surface -> Surface -> IO Bool
 showImage surface screen = blitSurface surface Nothing screen $ getOffsetRect (getSurfaceDimension surface) (getSurfaceDimension screen)
 
 drawSegment :: Surface -> Dimension -> Dimension -> Coord -> IO ()
-drawSegment screen blockDimension (xo, yo) (r, c) = do
+drawSegment screen blockDimension (xOffset, yOffset) (row, col) = do
     let (width, height) = blockDimension
-        x = (c * width) + xo
-        y = (r * height) + yo
+        x = (col * width) + xOffset
+        y = (row * height) + yOffset
     _ <- fillRect screen (Just (Rect x y width height)) (Pixel 0x000000)
     return ()
 
