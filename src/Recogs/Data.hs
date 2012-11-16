@@ -10,15 +10,14 @@ module Recogs.Data ( Coord
 
 import qualified Data.Map as Map ( Map )
 import System.Console.CmdArgs ( Data, Typeable )
-import Graphics.UI.SDL ( Surface )
+import Graphics.UI.SDL ( Surface, Rect )
 
 data Game = Game
-            { getCoords         :: [Coord]
+            { getRects          :: [Rect]
             , getStep           :: Int
             , getConf           :: Config
             , getImage          :: Surface
             , getBaseOffset     :: Dimension
-            , getBlockDimension :: Dimension
             , getFileNr         :: Int
             } deriving Show
 

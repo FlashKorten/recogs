@@ -49,8 +49,7 @@ main = do
     SDL.init [InitEverything]
     conf <- getConfig
     config <- createAdjustedWindow "Recogs" conf
-    coords <- shuffle $ coordinates (configRows config) (configCols config)
-    game <- initGame config coords
+    game <- initGame config
     gameRef <- newIORef game
     display gameRef
     eventLoop gameRef
@@ -107,7 +106,7 @@ scaleImage s d = zoom s d d True
 calculateBlockDimension :: Dimension -> Int -> Int -> Dimension
 calculateBlockDimension (w, h) r c = ((w `div` c) + 1, (h `div` r) + 1)
 
-calculateImageData :: Surface -> Config -> IO (Surface, Dimension, Dimension)
+calculateImageData :: Surface -> Config -> IO (Surface, [Rect], Dimension)
 calculateImageData image config = do
     screen <- getVideoSurface
     let sf              = getScaleFactor imageDimension screenDimension
@@ -116,13 +115,13 @@ calculateImageData image config = do
     scaledImage <- scaleImage image sf
     let offset    = getOffset scaledImageDimension screenDimension
         scaledImageDimension = getSurfaceDimension scaledImage
-        blockDimension = calculateBlockDimension scaledImageDimension (configRows config) (configCols config)
-    return (scaledImage, blockDimension, offset)
+    rects <- shuffle $ calculateRects scaledImageDimension offset (configRows config, configCols config)
+    return (scaledImage, rects, offset)
 
-initImageData :: Config -> IO (Surface, Dimension, Dimension)
-initImageData c = do
-    image  <- load $ head $ configImages c
-    calculateImageData image c
+initImageData :: Config -> IO (Surface, [Rect], Dimension)
+initImageData config = do
+    image  <- load $ head $ configImages config
+    calculateImageData image config
 
 updateImageData :: IORef Game -> IO ()
 updateImageData gameRef = do
@@ -130,17 +129,16 @@ updateImageData gameRef = do
     freeSurface $ getImage g
     let c = getConf g
     image  <- load $ configImages c !! getFileNr g
-    (scaledImage, blockDimension, offset) <- calculateImageData image c
-    writeIORef gameRef g{getImage = scaledImage, getBlockDimension = blockDimension, getBaseOffset = offset}
+    (scaledImage, rects, offset) <- calculateImageData image c
+    writeIORef gameRef g{getImage = scaledImage, getRects = rects, getBaseOffset = offset}
 
-initGame :: Config -> [Coord] -> IO Game
-initGame config coords = do
-    (image, blockDimension, offset) <- initImageData config
+initGame :: Config -> IO Game
+initGame config = do
+    (image, rects, offset) <- initImageData config
     return Game { getConf           = config
-                , getCoords         = coords
+                , getRects          = rects
                 , getStep           = 0
                 , getImage          = image
-                , getBlockDimension = blockDimension
                 , getBaseOffset     = offset
                 , getFileNr         = 0
                 }
@@ -164,24 +162,17 @@ nextRound gameRef = do
     if fileNr == length imgFiles - 1
       then exitSuccess
       else do
-        let rows = configRows config
-            cols = configCols config
-        coords <- shuffle $ coordinates rows cols
-        writeIORef gameRef g{ getCoords  = coords
-                           , getFileNr  = fileNr + 1
-                           , getStep    = length coords
-                           }
+        writeIORef gameRef g{ getFileNr  = fileNr + 1
+                            , getStep    = (configRows config) * (configCols config)
+                            }
         updateImageData gameRef
         clearScreen
 
 reshuffle :: IORef Game -> IO ()
 reshuffle gameRef = do
     g <- readIORef gameRef
-    let conf = getConf g
-        rows = configRows conf
-        cols = configCols conf
-    c <- shuffle $ coordinates rows cols
-    writeIORef gameRef g{getCoords = c}
+    rects <- shuffle $ calculateRectsFromGame g
+    writeIORef gameRef g{getRects = rects}
     display gameRef
 
 revealOrStartNext :: IORef Game -> IO ()
@@ -201,25 +192,36 @@ display :: IORef Game -> IO ()
 display gameRef = do
     g <- readIORef gameRef
     screen <- getVideoSurface
-    let step           = getStep g
-        image          = getImage g
-        coords         = getCoords g
-        blockDimension = getBlockDimension g
-        offset         = getBaseOffset g
-    _ <- showImage image screen
-    mapM_ (drawSegment screen blockDimension offset) $ take step coords
+    _ <- showImage (getImage g) screen
+    mapM_ (drawRect screen) $ take (getStep g) (getRects g)
     SDL.flip screen
 
 showImage :: Surface -> Surface -> IO Bool
 showImage surface screen = blitSurface surface Nothing screen $ getOffsetRect (getSurfaceDimension surface) (getSurfaceDimension screen)
 
-drawSegment :: Surface -> Dimension -> Dimension -> Coord -> IO ()
-drawSegment screen blockDimension (xo, yo) (r, c) = do
-    let (width, height) = blockDimension
-        x = (c * width) + xo
-        y = (r * height) + yo
-    _ <- fillRect screen (Just (Rect x y width height)) (Pixel 0x000000)
+drawRect :: Surface -> Rect -> IO ()
+drawRect s r = do
+    _ <- fillRect s (Just r) (Pixel 0x000000)
     return ()
+
+calculateRectsFromGame :: Game -> [Rect]
+calculateRectsFromGame g = calculateRects imageDimension offset (rows, cols)
+                             where imageDimension = getSurfaceDimension $ getImage g
+                                   offset         = getBaseOffset g
+                                   rows           = configRows config
+                                   cols           = configCols config
+                                   config         = getConf g
+
+calculateRects :: Dimension -> Dimension -> Dimension -> [Rect]
+calculateRects (wImage, hImage) offset (rows, cols) = map (calculateRect (width, height) offset) coords
+                                                        where width  = wImage `div` cols + 1
+                                                              height = hImage `div` rows + 1
+                                                              coords = [(r, c)| r <- [0..(rows - 1)], c <- [0..(cols - 1)]]
+
+calculateRect :: Dimension -> Dimension -> Coord -> Rect
+calculateRect (width, height) (xOffset, yOffset) (row, col) = Rect x y width height
+                                                                where x = (col * width) + xOffset
+                                                                      y = (row * height) + yOffset
 
 createAdjustedWindow :: String -> Config -> IO Config
 createAdjustedWindow title c
