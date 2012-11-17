@@ -47,10 +47,10 @@ import Recogs.Data ( Game(..)
 main :: IO ()
 main = do
     SDL.init [InitEverything]
-    conf <- getConfig
-    config <- createAdjustedWindow "Recogs" conf
-    coords <- shuffle $ coordinates (configRows config) (configCols config)
-    game <- initGame config coords
+    conf    <- getConfig
+    config  <- createAdjustedWindow "Recogs" conf
+    coords  <- shuffle $ coordinates config
+    game    <- initGame config coords
     gameRef <- newIORef game
     display gameRef
     eventLoop gameRef
@@ -59,9 +59,9 @@ eventLoop :: IORef Game -> IO ()
 eventLoop game = SDL.waitEventBlocking >>= handleEvent game
 
 handleEvent :: IORef Game -> Event -> IO ()
-handleEvent _    (SDL.KeyUp (Keysym SDLK_ESCAPE _ _))    = exit
-handleEvent game (SDL.KeyUp (Keysym k _ _))              = handleKey game k >> eventLoop game
-handleEvent game _                                       = eventLoop game
+handleEvent _    (SDL.KeyUp (Keysym SDLK_ESCAPE _ _)) = exit
+handleEvent game (SDL.KeyUp (Keysym k _ _))           = handleKey game k >> eventLoop game
+handleEvent game _                                    = eventLoop game
 
 handleKey :: IORef Game -> SDLKey -> IO ()
 handleKey game SDLK_SPACE     = doNextStep game (subtract 1)
@@ -98,8 +98,10 @@ rangeCheck lowerBound upperBound n
 maxSteps :: Config -> Int
 maxSteps c = configRows c * configCols c
 
-coordinates :: Int -> Int -> [Coord]
-coordinates rows cols = [(r, c)| r <- [0..(rows - 1)], c <- [0..(cols - 1)]]
+coordinates :: Config -> [Coord]
+coordinates config = [(r, c)| r <- [0..(rows - 1)], c <- [0..(cols - 1)]]
+                        where rows = configRows config
+                              cols = configCols config
 
 scaleImage :: Surface -> Double -> IO Surface
 scaleImage s d = zoom s d d True
@@ -114,24 +116,16 @@ calculateImageData image config = do
         imageDimension  = getSurfaceDimension image
         screenDimension = getSurfaceDimension screen
     scaledImage <- scaleImage image sf
+    freeSurface image
     let offset    = getOffset scaledImageDimension screenDimension
         scaledImageDimension = getSurfaceDimension scaledImage
         blockDimension = calculateBlockDimension scaledImageDimension (configRows config) (configCols config)
     return (scaledImage, blockDimension, offset)
 
 initImageData :: Config -> IO (Surface, Dimension, Dimension)
-initImageData c = do
-    image  <- load $ head $ configImages c
-    calculateImageData image c
-
-updateImageData :: IORef Game -> IO ()
-updateImageData gameRef = do
-    game <- readIORef gameRef
-    freeSurface $ getImage game
-    let config = getConf game
-    image  <- load $ configImages config !! getFileNr game
-    (scaledImage, blockDimension, offset) <- calculateImageData image config
-    writeIORef gameRef game {getImage = scaledImage, getBlockDimension = blockDimension, getBaseOffset = offset}
+initImageData config = do
+    image  <- load $ head $ configImages config
+    calculateImageData image config
 
 initGame :: Config -> [Coord] -> IO Game
 initGame config coords = do
@@ -164,24 +158,25 @@ nextRound gameRef = do
     if fileNr == length imgFiles - 1
       then exitSuccess
       else do
-        let rows = configRows config
-            cols = configCols config
-        coords <- shuffle $ coordinates rows cols
-        writeIORef gameRef game { getCoords  = coords
-                                , getFileNr  = fileNr + 1
-                                , getStep    = length coords
-                                }
-        updateImageData gameRef
+        let nextFileNr = fileNr + 1
+        coords <- shuffle $ coordinates config
+        image  <- load $ configImages config !! nextFileNr
+        (scaledImage, blockDimension, offset) <- calculateImageData image config
+        freeSurface image
         clearScreen
+        writeIORef gameRef game { getCoords = coords
+                                , getFileNr = nextFileNr
+                                , getStep   = maxSteps config
+                                , getImage  = scaledImage
+                                , getBlockDimension = blockDimension
+                                , getBaseOffset = offset
+                                }
 
 reshuffle :: IORef Game -> IO ()
 reshuffle gameRef = do
     game <- readIORef gameRef
-    let conf = getConf game
-        rows = configRows conf
-        cols = configCols conf
-    c <- shuffle $ coordinates rows cols
-    writeIORef gameRef game {getCoords = c}
+    coords <- shuffle $ coordinates $ getConf game
+    writeIORef gameRef game {getCoords = coords}
     display gameRef
 
 revealOrStartNext :: IORef Game -> IO ()
@@ -216,25 +211,27 @@ showImage surface screen = blitSurface surface Nothing screen $ getOffsetRect (g
 drawSegment :: Surface -> Dimension -> Dimension -> Coord -> IO ()
 drawSegment screen blockDimension (xOffset, yOffset) (row, col) = do
     let (width, height) = blockDimension
-        x = (col * width) + xOffset
-        y = (row * height) + yOffset
+        x               = (col * width)  + xOffset
+        y               = (row * height) + yOffset
     _ <- fillRect screen (Just (Rect x y width height)) (Pixel 0x000000)
     return ()
 
 createAdjustedWindow :: String -> Config -> IO Config
-createAdjustedWindow title c
-    | configFS c = do
+createAdjustedWindow title config
+    | configFS config = do
                    info <- getVideoInfo
                    let w = videoInfoWidth info
                        h = videoInfoHeight info
                    _ <- setVideoMode w h 32 [Fullscreen]
-                   return c{ configWidth  = w
-                           , configHeight = h
-                           }
+                   return config { configWidth  = w
+                                 , configHeight = h
+                                 }
     | otherwise  = do
-                   _ <- setVideoMode (fromIntegral $ configWidth c) (fromIntegral $ configHeight c) 32 []
+                   let w = fromIntegral $ configWidth config
+                       h = fromIntegral $ configHeight config
+                   _ <- setVideoMode w h 32 []
                    _ <- SDL.setCaption title title
-                   return c
+                   return config
 
 exit :: IO ()
 exit = do
