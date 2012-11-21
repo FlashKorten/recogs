@@ -143,16 +143,23 @@ initGame config = do
                 , getFileNr         = 0
                 }
 
+doNextStep' :: Game -> (Int -> Int) -> (Game, IsUnchanged)
+doNextStep' game f = if lastStep == nextStep
+                        then (game, True)
+                        else (game {getStep = nextStep}, False)
+                      where lastStep   = getStep game
+                            nextStep   = rangeCheck 0 upperBound $ f lastStep
+                            upperBound = maxSteps $ getConf game
+
 doNextStep :: IORef Game -> (Int -> Int) -> IO ()
 doNextStep gameRef f = do
-    g <- readIORef gameRef
-    let lastStep   = getStep g
-        upperBound = maxSteps $ getConf g
-        nextStep   = rangeCheck 0 upperBound $ f lastStep
-    unless (nextStep == lastStep) $ do
-        writeIORef gameRef g{ getStep = nextStep }
+    game <- readIORef gameRef
+    let (newState, unchanged) = doNextStep' game f
+    unless unchanged $ do
+        writeIORef gameRef newState
         display gameRef
 
+type IsUnchanged = Bool
 nextRound :: IORef Game -> IO ()
 nextRound gameRef = do
     g <- readIORef gameRef
