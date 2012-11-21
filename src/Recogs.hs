@@ -159,19 +159,29 @@ doNextStep gameRef f = do
         writeIORef gameRef newState
         display gameRef
 
+type IsDone = Bool
 type IsUnchanged = Bool
+
+nextRound' :: Game -> (Game, IsDone)
+nextRound' game = if fileNr == lastFileNr
+                      then (game, True)
+                      else (newGame, False)
+                    where fileNr     = getFileNr game
+                          config     = getConf game
+                          lastFileNr = length (configImages config) - 1
+                          steps      = configRows config * configCols config
+                          newGame    = game { getFileNr = fileNr + 1
+                                            , getStep   = steps
+                                            }
+
 nextRound :: IORef Game -> IO ()
 nextRound gameRef = do
-    g <- readIORef gameRef
-    let fileNr    = getFileNr g
-        config    = getConf g
-        imgFiles  = configImages config
-    if fileNr == length imgFiles - 1
+    game <- readIORef gameRef
+    let (newState, isDone) = nextRound' game
+    if isDone
       then exitSuccess
       else do
-        writeIORef gameRef g{ getFileNr  = fileNr + 1
-                            , getStep    = (configRows config) * (configCols config)
-                            }
+        writeIORef gameRef newState
         updateImageData gameRef
         clearScreen
 
